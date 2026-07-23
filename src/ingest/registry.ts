@@ -85,19 +85,16 @@ export function createRegistry(): AgentRegistry {
       // Find exact: claimers whose range satisfies the detected version.
       let exact: Claim | null = null;
       if (detectedVer) {
-        const satisfying = claims.filter((c) =>
-          c.adapter.versionRange !== undefined
-            ? satisfies(detected!, c.adapter.versionRange)
-            : true,
+        // Exact = bounded parsers whose range satisfies the detected version. Generic
+        // (undefined range) is NEVER the exact pick — it is always the last-resort
+        // fallback, reached via the fallback chain with fallback=true.
+        const bounded = claims.filter(
+          (c) =>
+            c.adapter.versionRange !== undefined &&
+            satisfies(detected!, c.adapter.versionRange),
         );
-        // "generic" (undefined range) only claims as exact when no bounded parser does;
-        // prefer bounded matches over generic for the exact slot.
-        const bounded = satisfying.filter(
-          (c) => c.adapter.versionRange !== undefined,
-        );
-        const pool = bounded.length > 0 ? bounded : satisfying;
         // Newest range wins: highest lower bound, then highest upper bound.
-        const sorted = [...pool].sort((a, b) => {
+        const sorted = [...bounded].sort((a, b) => {
           const c = compareVersions(
             minOf(a.adapter.versionRange),
             minOf(b.adapter.versionRange),
