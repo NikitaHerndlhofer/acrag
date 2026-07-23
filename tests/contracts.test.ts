@@ -9,6 +9,14 @@ import type {
   SegmentKind,
   MessageRole,
 } from "../src/contracts/types.ts";
+import type {
+  ArchiveSource,
+  FileSource,
+  SqliteSource,
+  ConversationHandle,
+} from "../src/contracts/source.ts";
+import type { DetectContext, Parser } from "../src/contracts/parser.ts";
+import type { AgentRegistry } from "../src/contracts/registry.ts";
 
 test("Segment/ParsedMessage/ParsedTranscript shapes", () => {
   const seg: Segment = {
@@ -68,4 +76,40 @@ test("AgentId / SegmentKind / MessageRole unions are string literals", () => {
   const k: SegmentKind = "tool_call";
   const r: MessageRole = "tool";
   expect([a, k, r]).toEqual(["cursor", "tool_call", "tool"]);
+});
+
+test("ArchiveSource is FileSource | SqliteSource; ConversationHandle carries id + meta", () => {
+  const file: FileSource = { kind: "file", filePath: "/x/a.jsonl", contents: "{}" };
+  const sqlite: SqliteSource = { kind: "sqlite", dbPath: "/x/state.vscdb" };
+  const src: ArchiveSource = Math.random() > 0.5 ? file : sqlite;
+  expect(["file", "sqlite"]).toContain(src.kind);
+
+  const h: ConversationHandle = { id: "00096f9a-...", meta: { lastUpdatedAt: 1783535488786 } };
+  expect(h.id).toBeTruthy();
+  expect(h.meta?.lastUpdatedAt).toBe(1783535488786);
+});
+
+test("DetectContext takes a source (not filePath/contents); Parser is per-conversation", () => {
+  const ctx: DetectContext = { source: { kind: "sqlite", dbPath: "/x/state.vscdb" } };
+  // DetectContext must NOT carry filePath/contents anymore (source replaces them)
+  expect((ctx as unknown as Record<string, unknown>).filePath).toBeUndefined();
+  expect((ctx as unknown as Record<string, unknown>).contents).toBeUndefined();
+
+  // Compile-time signature check (erased at runtime): Parser now has listConversations + parse(handle),
+  // and AgentRegistry.parseAndChunk takes a ConversationHandle. If these drift, tsc fails this file.
+  const _p: Parser = {
+    agent: "cursor",
+    versionRange: "^1",
+    id: "cursor:v1",
+    detect: () => null,
+    listConversations: () => [],
+    parse: () => ({ conversation: { id: "c0", agent: "cursor" }, messages: [] }),
+  };
+  const _r: AgentRegistry = {
+    register: () => {},
+    resolve: () => null,
+    parseAndChunk: () => null,
+  };
+  expect(_p.id).toBe("cursor:v1");
+  expect(typeof _r.parseAndChunk).toBe("function");
 });

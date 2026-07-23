@@ -6,6 +6,7 @@ import type {
 } from "./types.ts";
 import type { DetectContext, Parser, ParserMatch } from "./parser.ts";
 import type { Chunker } from "./chunker.ts";
+import type { ConversationHandle } from "./source.ts";
 
 /**
  * A parser + chunker bundled for one (agent, versionRange). The ingester resolves an adapter per
@@ -39,9 +40,11 @@ export interface AgentRegistry {
   /** Identify the adapter for a file: run each registered parser's `detect` in order. */
   resolve(ctx: DetectContext): ResolvedAdapter | null;
 
-  /** Convenience: parse + chunk in one call (the ingester's main entry). */
+  /** Convenience: enumerate → (per handle) parse + chunk. The ingester's main entry calls this once
+   *  per `ConversationHandle` (from `adapter.parser.listConversations(ctx)`). */
   parseAndChunk(
     ctx: DetectContext,
+    handle: ConversationHandle,
     strategy?: ChunkStrategy,
   ): {
     transcript: ParsedTranscript;
