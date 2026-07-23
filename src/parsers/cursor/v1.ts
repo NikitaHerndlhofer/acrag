@@ -123,6 +123,22 @@ function pickText(...candidates: unknown[]): string | undefined {
   return undefined;
 }
 
+// Cursor bubble.createdAt is an ISO STRING in real data; composerHeaders.createdAt/lastUpdatedAt are
+// epoch-ms NUMBERS. Accept either, fail-soft on garbage.
+function toIsoCreatedAt(raw: unknown): string | undefined {
+  if (raw == null) return undefined;
+  if (typeof raw === "number") {
+    const d = new Date(raw);
+    return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
+  }
+  if (typeof raw === "string") {
+    if (raw.length === 0) return undefined;
+    const d = new Date(raw);
+    return Number.isNaN(d.getTime()) ? raw : d.toISOString();
+  }
+  return undefined;
+}
+
 function repoFromRemote(remote: string): string {
   const trimmed = remote.replace(/\/+$/, "").replace(/\.git$/, "");
   const parts = trimmed.split(/[/:]/);
@@ -325,7 +341,7 @@ function parse(ctx: DetectContext, handle: ConversationHandle): ParsedTranscript
     > | null;
     if (!composerData) {
       return {
-        conversation: { id: handle.id, agent: "cursor", tags: ["background"] },
+        conversation: { id: handle.id, agent: "cursor" },
         messages: [],
       };
     }
@@ -348,17 +364,20 @@ function parse(ctx: DetectContext, handle: ConversationHandle): ParsedTranscript
     const agentVersion =
       typeof composerData._v === "number" ? `v${composerData._v}` : undefined;
 
+    const isSubagent = headerRow?.isSubagent ?? handle.meta?.isSubagent;
     const conversation: ConversationMeta = {
       id: handle.id,
       agent: "cursor",
       agentVersion,
       repository: repositoryFromHeaderValue(headerValue),
       parentConversationId: parentFromSubagent(
-        headerRow?.isSubagent ?? handle.meta?.isSubagent,
+        isSubagent,
         headerValue,
         composerData,
       ),
-      tags: ["background"],
+      // Parser proposes only tags it can derive from the source; hook-metadata tags
+      // (e.g. "background") are added by the ingester at finalize time.
+      tags: isSubagent === 1 || isSubagent === true ? ["subagent"] : undefined,
     };
 
     const headers = Array.isArray(composerData.fullConversationHeadersOnly)
@@ -392,21 +411,13 @@ function parse(ctx: DetectContext, handle: ConversationHandle): ParsedTranscript
         index,
       }));
 
-      const createdMs =
-        typeof bubble.createdAt === "number"
-          ? bubble.createdAt
-          : typeof h.createdAt === "number"
-            ? h.createdAt
-            : undefined;
-
       messages.push({
         id: messageId,
         conversationId: handle.id,
         role,
         seq,
         segments,
-        createdAt:
-          createdMs !== undefined ? new Date(createdMs).toISOString() : undefined,
+        createdAt: toIsoCreatedAt(bubble.createdAt ?? h.createdAt),
       });
       seq += 1;
     }

@@ -43,6 +43,9 @@ test("parse(handle) emits typed segments + conversation metadata", () => {
   expect(calls.length).toBeGreaterThan(0);
   expect(results.length).toBeGreaterThan(0);
   expect(results.every((r) => r.toolCallId)).toBe(true);
+  // createdAt is an ISO STRING in real Cursor; the fixture mirrors that — it must round-trip.
+  expect(t.messages.every((m) => typeof m.createdAt === "string")).toBe(true);
+  expect(t.messages[0].createdAt).toBe("2023-11-14T22:13:20.000Z");
 });
 
 test("parse is fail-soft on a malformed bubble row", () => {

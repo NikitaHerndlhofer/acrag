@@ -41,8 +41,13 @@ const bidAsst = "22222222-2222-4222-8222-222222222222";
 const bidTool = "33333333-3333-4333-8333-333333333333";
 const bidDiff = "44444444-4444-4444-8444-444444444444";
 const toolCallId = "tool-call-placeholder-001";
+// composerHeaders timestamps are epoch-ms NUMBERS (real Cursor); bubble.createdAt is an ISO STRING.
 const createdAt = 1_700_000_000_000;
 const lastUpdatedAt = 1_700_000_100_000;
+const t0 = "2023-11-14T22:13:20.000Z";
+const t1 = "2023-11-14T22:13:20.001Z";
+const t2 = "2023-11-14T22:13:20.002Z";
+const t3 = "2023-11-14T22:13:20.003Z";
 
 const headerValue = {
   type: "composerHeader",
@@ -94,7 +99,7 @@ const userBubble = {
   type: 1,
   text: "USER_PROMPT_PLACEHOLDER",
   richText: "USER_PROMPT_PLACEHOLDER",
-  createdAt,
+  createdAt: t0,
   allThinkingBlocks: [],
   suggestedCodeBlocks: [],
   toolResults: [],
@@ -110,7 +115,7 @@ const asstBubble = {
   type: 2,
   text: "ASSISTANT_PROSE_PLACEHOLDER",
   richText: "",
-  createdAt: createdAt + 1,
+  createdAt: t1,
   allThinkingBlocks: [
     { thinking: "THINKING_PLACEHOLDER", text: "THINKING_PLACEHOLDER" },
   ],
@@ -134,7 +139,7 @@ const toolBubble = {
   type: 2,
   text: "",
   richText: "",
-  createdAt: createdAt + 2,
+  createdAt: t2,
   allThinkingBlocks: [],
   suggestedCodeBlocks: [],
   toolResults: [
@@ -169,7 +174,7 @@ const diffBubble = {
   type: 2,
   text: "DIFF_INTRO_PLACEHOLDER",
   richText: "",
-  createdAt: createdAt + 3,
+  createdAt: t3,
   allThinkingBlocks: [],
   suggestedCodeBlocks: [],
   toolResults: [],
