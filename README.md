@@ -11,7 +11,7 @@ conversations, chunks each one into `chunk` rows, mirrors them into
 [Ollama](https://ollama.com)), and exposes the whole thing as a thin
 [`sqlite3`](https://sqlite.org) wrapper.
 
-Agentic coding tools are great at *doing* but bad at *remembering*. A
+Agentic coding tools are great at _doing_ but bad at _remembering_. A
 single chat can run for hundreds of turns across days, and once it
 scrolls off the top of the UI it's effectively gone — you can't ask
 "where did we figure out that connection-pool bug?" across weeks of
@@ -122,32 +122,36 @@ macOS + [Homebrew](https://brew.sh):
 
 ```bash
 brew install NikitaHerndlhofer/tap/acrag
-ollama pull bge-m3      # ~2 GB, one-time — the embed model
-acrag bootstrap         # check Ollama, create the archive DB, print status
-acrag install-hooks     # wire Cursor hooks → detached background ingest
-acrag install-skill     # install the retrieval recipes for Cursor's agent
+acrag bootstrap
 ```
 
-`brew install` handles the binary and dependencies (`sqlite` and `ollama`
-are pulled in for you). Then:
+Two commands, end to end. `brew install` handles the binary and dependencies
+(`sqlite` and `ollama` are pulled in for you). `acrag bootstrap` is an
+**interactive setup wizard**:
 
-1. `ollama pull bge-m3` fetches the embed model `acrag` embeds chunks with.
-2. `acrag bootstrap` probes Ollama, runs the schema migrations to create
-   the archive at `~/.acrag/acrag.sqlite`, and prints a status line.
-3. `acrag install-hooks` writes `~/.cursor/hooks/hooks.json` so Cursor
-   fires `acrag` on `Stop` / `SubagentStop` / `SubagentStart` /
-   `WorkspaceOpen` — the agent never blocks on embedding (see below).
-4. `acrag install-skill` writes the recipe `SKILL.md` to
-   `~/.cursor/skills/acrag/` (manual-invocation only — the agent can't
-   reach for it autonomously).
+1. **Ollama** — probes Ollama and, if `bge-m3` isn't pulled yet, pulls it
+   automatically (~2 GB, one-time). If Ollama isn't running, it says so and
+   skips the pull (start Ollama, then re-run).
+2. **Archive** — runs the schema migrations to create the archive at
+   `~/.acrag/acrag.sqlite` (idempotent via `PRAGMA user_version`).
+3. **Cursor hooks** — asks `Install Cursor hooks to ~/.cursor/hooks/hooks.json?
+   [Y/n]`. If yes, wires Cursor to fire `acrag` on `Stop` / `SubagentStop` /
+   `SubagentStart` / `WorkspaceOpen` so the agent never blocks on embedding
+   (see below). Skipped automatically if already installed.
+4. **Cursor agent skill** — asks `Install the retrieval skill to
+   ~/.cursor/skills/acrag/SKILL.md? [Y/n]`. If yes, writes the recipe `SKILL.md`
+   (manual-invocation only — the agent can't reach for it autonomously). Skipped
+   if already installed.
+5. **Initial sweep** — runs `acrag index` automatically to ingest anything
+   already in `~/.acrag/transcripts`.
+6. Prints a status summary.
 
-Each step is independently invokable and idempotent — re-run any time to
-restore the setup to a known-good state.
-
-> `acrag bootstrap` is intentionally minimal (probe + migrate + status).
-> If you'd rather it also pull the model and install hooks/skill in one
-> shot — the `swrag bootstrap` "two commands end to end" shape — that's a
-> small follow-up; see the end of this README.
+Each step is idempotent — re-run `acrag bootstrap` any time to restore the
+setup to a known-good state (already-done steps are skipped). Each step is also
+independently invokable (`acrag index`, `acrag install-hooks`,
+`acrag install-skill`) if you'd rather pick and choose. In a non-interactive
+(piped) context the two prompt steps are skipped with a hint to run those
+commands yourself; the automatic steps still run.
 
 ### About the hooks
 
@@ -185,9 +189,26 @@ agent can't reach for it on its own.
 
 ```bash
 acrag bootstrap
+# 1. Ollama
+#    reachable, model bge-m3 ready.
+# 2. Archive
+#    ~/.acrag/acrag.sqlite (migrations applied, 0 conversations).
+# 3. Cursor hooks
+#    Install Cursor hooks to ~/.cursor/hooks/hooks.json? [Y/n] y
+#    wrote ~/.cursor/hooks/hooks.json.
+# 4. Cursor agent skill
+#    Install the retrieval skill to ~/.cursor/skills/acrag/SKILL.md? [Y/n] y
+#    wrote ~/.cursor/skills/acrag/SKILL.md.
+# 5. Initial sweep
+#    done.
+# Setup complete.
 # archive: ~/.acrag/acrag.sqlite
 # embed model: bge-m3
 # ollama: reachable (bge-m3)
+# model pulled: no
+# hooks: installed
+# skill: installed
+# sweep: done
 # conversations: 0
 ```
 
@@ -198,30 +219,30 @@ ingest, and `acrag sql` will start returning rows.
 
 Zero flags — everything is an env var (validated once per process):
 
-| Env var                | Default                              | What it overrides                                |
-| ---------------------- | ------------------------------------ | ------------------------------------------------ |
-| `ACRAG_ARCHIVE`        | `~/.acrag/acrag.sqlite`              | Archive DB path.                                  |
-| `ACRAG_TRANSCRIPTS_DIR`| `~/.acrag/transcripts`               | Dir `acrag index` sweeps for `*.jsonl`.          |
-| `ACRAG_OLLAMA_HOST`    | `http://127.0.0.1:11434`             | Ollama endpoint for `acrag embed`.               |
-| `ACRAG_EMBED_MODEL`    | `bge-m3`                             | Ollama embed model (1024-d).                      |
-| `ACRAG_SQLITE_DYLIB`   | Homebrew sqlite (auto-detected)     | sqlite dylib with loadable-extension support.    |
+| Env var                 | Default                         | What it overrides                             |
+| ----------------------- | ------------------------------- | --------------------------------------------- |
+| `ACRAG_ARCHIVE`         | `~/.acrag/acrag.sqlite`         | Archive DB path.                              |
+| `ACRAG_TRANSCRIPTS_DIR` | `~/.acrag/transcripts`          | Dir `acrag index` sweeps for `*.jsonl`.       |
+| `ACRAG_OLLAMA_HOST`     | `http://127.0.0.1:11434`        | Ollama endpoint for `acrag embed`.            |
+| `ACRAG_EMBED_MODEL`     | `bge-m3`                        | Ollama embed model (1024-d).                  |
+| `ACRAG_SQLITE_DYLIB`    | Homebrew sqlite (auto-detected) | sqlite dylib with loadable-extension support. |
 
 Set them in your shell (or Cursor's env) to override. `acrag path
 archive` prints the resolved archive path for the current env.
 
 ## Commands
 
-| Command                       | What it does                                                                                                                       |
-| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `acrag sql`                   | Run SQL through `sqlite3` (vec preloaded, archive read-only). Pipe SQL via stdin. Forward sqlite3 flags after `--`.               |
-| `acrag embed`                 | Print a vec blob literal (`x'…'`) of the piped text's embedding — for `vec_search` / `vec0` vector columns.                       |
-| `acrag path [archive\|sqlite3\|vec0]` | Print a resolved path.                                                                                                      |
-| `acrag index [-n N]`          | Sweep the transcript dir for `*.jsonl`: hash-skip unchanged, ingest new, supersede changed. `--limit N` caps files (incremental).  |
-| `acrag ingest <path>`         | Background ingest entry point: read one transcript file, run the idempotent ingest pipeline.                                     |
-| `acrag hook <event>`          | Cursor hook dispatcher. Reads JSON from stdin, spawns a detached ingest/sweep, exits 0.                                          |
-| `acrag install-hooks`         | Write `~/.cursor/hooks/hooks.json` and print a settings note.                                                                      |
-| `acrag install-skill`         | Write the recipe `SKILL.md` to `~/.cursor/skills/acrag/` and print an install note.                                                |
-| `acrag bootstrap`             | Check Ollama, create the archive DB (run migrations), print status. Idempotent.                                                   |
+| Command                               | What it does                                                                                                                      |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `acrag sql`                           | Run SQL through `sqlite3` (vec preloaded, archive read-only). Pipe SQL via stdin. Forward sqlite3 flags after `--`.               |
+| `acrag embed`                         | Print a vec blob literal (`x'…'`) of the piped text's embedding — for `vec_search` / `vec0` vector columns.                       |
+| `acrag path [archive\|sqlite3\|vec0]` | Print a resolved path.                                                                                                            |
+| `acrag index [-n N]`                  | Sweep the transcript dir for `*.jsonl`: hash-skip unchanged, ingest new, supersede changed. `--limit N` caps files (incremental). |
+| `acrag ingest <path>`                 | Background ingest entry point: read one transcript file, run the idempotent ingest pipeline.                                      |
+| `acrag hook <event>`                  | Cursor hook dispatcher. Reads JSON from stdin, spawns a detached ingest/sweep, exits 0.                                           |
+| `acrag install-hooks`                 | Write `~/.cursor/hooks/hooks.json` and print a settings note.                                                                     |
+| `acrag install-skill`                 | Write the recipe `SKILL.md` to `~/.cursor/skills/acrag/` and print an install note.                                               |
+| `acrag bootstrap`                     | Check Ollama, pull `bge-m3` if missing, create/migrate the archive, prompt to install hooks + skill, run an initial sweep, print status. Idempotent.                                                   |
 
 ## Forwarding flags to sqlite3
 
@@ -298,7 +319,7 @@ removes its stale vec rows.
 
 ## Parsers & chunkers (extensible)
 
-Different agents — and different *versions* of the same agent — store
+Different agents — and different _versions_ of the same agent — store
 chats differently. `acrag` resolves a `(parser, chunker)` pair per
 conversation through a **version-aware registry**:
 
@@ -324,4 +345,5 @@ opens the archive **read-only**, so recipes never mutate.
 
 [MIT](./LICENSE). Built on [`agent-archive-core`](https://github.com/NikitaHerndlhofer/agent-archive-core),
 the shared, schema-agnostic archive mechanism (SQLite + sqlite-vec + FTS5
-+ Ollama embeddings) that `acrag` and `swrag` both build on.
+
+- Ollama embeddings) that `acrag` and `swrag` both build on.
