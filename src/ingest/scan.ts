@@ -10,6 +10,7 @@
 import type { FileSource } from "../contracts/source.ts";
 import { ingestSource } from "./ingester.ts";
 import type { IngestOptions, IngestOutcome } from "./types.ts";
+import { existsSync } from "node:fs";
 
 export interface SweepOptions {
   /** Directory to scan recursively for `.jsonl` transcripts. */
@@ -31,6 +32,9 @@ export interface SweepOutcome {
 
 /** Recursively collect `.jsonl` files under `root`, sorted for determinism. */
 async function listJsonlFiles(root: string): Promise<string[]> {
+  // A fresh install has no transcripts dir yet — treat that as "nothing to
+  // ingest" rather than letting Bun.Glob throw ENOENT on a missing cwd.
+  if (!existsSync(root)) return [];
   const glob = new Bun.Glob("**/*.jsonl");
   const found: string[] = [];
   for await (const rel of glob.scan({ cwd: root, absolute: true, dot: false })) {

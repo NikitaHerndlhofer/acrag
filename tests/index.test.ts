@@ -66,3 +66,24 @@ test("sweep ingests new files, hash-skips unchanged, supersedes changed", async 
     } catch {}
   }
 });
+
+test("sweep on a missing transcripts dir is a no-op (no ENOENT)", async () => {
+  const dbPath = `${import.meta.dir}/.tmp-sweep-missing.sqlite`;
+  const root = `${import.meta.dir}/.tmp-does-not-exist`;
+  const embedFn = async (batch: string[]) =>
+    batch.map(() => new Float32Array(1024).fill(0.5));
+  const opts = {
+    dbPath,
+    ollamaHost: "http://x",
+    embedModel: "bge-m3",
+    embedFn,
+  };
+
+  const out = await sweep({ root, opts });
+  expect(out.scanned).toBe(0);
+  expect(out.applied).toBe(0);
+  expect(out.results).toEqual([]);
+  try {
+    unlinkSync(dbPath);
+  } catch {}
+});
