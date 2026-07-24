@@ -20,6 +20,13 @@ export interface IngestOptions {
    */
   embedFn?: (batch: string[]) => Promise<Float32Array[]>;
   /**
+   * Optional: ingest only one conversation handle (by `ConversationHandle.id`).
+   * Used by the Cursor `stop`/`subagentStop` hook path, which carries a
+   * `conversation_id` and wants a targeted re-ingest of that one composer
+   * from `state.vscdb` rather than a full sweep. Undefined = ingest all handles.
+   */
+  handleId?: string;
+  /**
    * Optional parent conversation id (for subagent transcripts). Used as a
    * fallback when the parsed transcript doesn't carry one — forwarded by the
    * `acrag ingest` hook entry via `ACRAG_PARENT_CONVERSATION_ID`.

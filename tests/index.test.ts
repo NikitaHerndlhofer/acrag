@@ -28,7 +28,9 @@ test("sweep ingests new files, hash-skips unchanged, supersedes changed", async 
   await sweep({ root, opts }); // first pass: ingest both
   const db = openArchive(dbPath, { readonly: true });
   try {
-    expect((db.query("SELECT COUNT(*) c FROM conversation").get() as any).c).toBe(2);
+    expect(
+      (db.query("SELECT COUNT(*) c FROM conversation").get() as any).c,
+    ).toBe(2);
   } finally {
     db.close();
   }
@@ -52,7 +54,9 @@ test("sweep ingests new files, hash-skips unchanged, supersedes changed", async 
     expect(
       (
         db2
-          .query("SELECT COUNT(*) c FROM conversation WHERE superseded_by IS NULL")
+          .query(
+            "SELECT COUNT(*) c FROM conversation WHERE superseded_by IS NULL",
+          )
           .get() as any
       ).c,
     ).toBe(2);

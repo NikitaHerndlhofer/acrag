@@ -46,21 +46,28 @@ function segmentContentHash(segments: Segment[]): string {
   return segments.map((s) => s.content).join("\n");
 }
 
-interface SourceFingerprint {
-  sourcePath: string;
-  fileHash: string;
-}
-
-function fingerprintSource(source: ArchiveSource): SourceFingerprint {
+/**
+ * Per-conversation idempotency key.
+ *
+ * FileSource: sha256(contents) — a changed file produces a new hash (and the
+ * generic parser derives a new conversation id, so the supersede branch fires).
+ * SqliteSource (Cursor state.vscdb): a cheap version key from the handle's
+ * `listConversations` meta (`lu:<lastUpdatedAt>`). The Cursor parser already
+ * surfaces `lastUpdatedAt` per composer, so we skip unchanged composers without
+ * re-reading their bubbles. An empty key means "unknown" — the caller re-ingests
+ * (never skips) so a null `lastUpdatedAt` can't mask a real change.
+ */
+function fingerprintConversation(
+  source: ArchiveSource,
+  handle: ConversationHandle,
+): string {
   if (source.kind === "file") {
-    return { sourcePath: source.filePath, fileHash: sha256(source.contents) };
+    return sha256(source.contents);
   }
-  // SqliteSource (Cursor state.vscdb): per-composer idempotency is keyed on the
-  // composer row, not a whole-file hash. Not exercised by the ingester tests;
-  // the parser opens the DB read-only and enumerates composerIds itself.
-  throw new Error(
-    "ingestSource: sqlite source fingerprinting is not implemented yet (use a FileSource)",
-  );
+  const lu = handle.meta?.lastUpdatedAt;
+  if (typeof lu === "number") return `lu:${lu}`;
+  if (typeof lu === "string" && lu.length > 0) return `lu:${lu}`;
+  return "";
 }
 
 interface ExistingConversation {
@@ -223,8 +230,6 @@ export async function ingestSource(
   source: ArchiveSource,
   opts: IngestOptions,
 ): Promise<IngestOutcome> {
-  const { sourcePath, fileHash } = fingerprintSource(source);
-
   const db = openArchive(opts.dbPath, {});
   const logger: Logger = createLogger({
     prefix: "[acrag]",
@@ -240,15 +245,22 @@ export async function ingestSource(
       return { applied: false, reason: "no parser" };
     }
 
-    const handles: ConversationHandle[] =
+    let handles: ConversationHandle[] =
       resolved.adapter.parser.listConversations(ctx);
+    if (opts.handleId) {
+      handles = handles.filter((h) => h.id === opts.handleId);
+      if (handles.length === 0) {
+        return { applied: false, reason: `no conversation ${opts.handleId}` };
+      }
+    }
 
     let anyApplied = false;
     let lastConvId: string | undefined;
 
     for (const handle of handles) {
+      const convHash = fingerprintConversation(source, handle);
       const existing = lookupActiveConversation(db, handle.id);
-      if (existing && existing.file_hash === fileHash) {
+      if (existing && convHash.length > 0 && existing.file_hash === convHash) {
         lastConvId = existing.id;
         continue; // idempotent no-op for this conversation
       }
@@ -258,7 +270,7 @@ export async function ingestSource(
       const { transcript, chunks } = result;
       const conversationId = transcript.conversation.id;
 
-      upsertConversation(db, transcript, handle.id, fileHash, opts.parentConversationId);
+      upsertConversation(db, transcript, handle.id, convHash, opts.parentConversationId);
       replaceTags(db, transcript);
 
       // Map segmentId -> messageId so chunk rows carry denormalized FKs on the

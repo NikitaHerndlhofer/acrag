@@ -18,7 +18,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runBootstrap, type BootstrapUi } from "../src/commands/bootstrap.ts";
 
-function makeUi(answers: Record<string, boolean>): BootstrapUi & { log: string[] } {
+function makeUi(
+  answers: Record<string, boolean>,
+): BootstrapUi & { log: string[] } {
   const log: string[] = [];
   return {
     log,
@@ -43,8 +45,9 @@ function pathsFor(home: string) {
       ollamaHost: "http://127.0.0.1:11434",
       embedModel: "bge-m3",
       transcriptsDir: join(home, "transcripts"),
+      cursorDb: join(home, "state.vscdb"),
     },
-    hooksPath: join(home, ".cursor", "hooks", "hooks.json"),
+    hooksPath: join(home, ".cursor", "hooks.json"),
     skillPath: join(home, ".cursor", "skills", "acrag", "SKILL.md"),
   };
 }
@@ -55,7 +58,7 @@ describe("acrag bootstrap", () => {
     const pulled: string[] = [];
     const swept: string[] = [];
     const ui = makeUi({
-      "Install Cursor hooks to ~/.cursor/hooks/hooks.json?": true,
+      "Install Cursor hooks to ~/.cursor/hooks.json?": true,
       "Install the retrieval skill to ~/.cursor/skills/acrag/SKILL.md?": true,
     });
 
@@ -74,10 +77,10 @@ describe("acrag bootstrap", () => {
 
     expect(pulled).toEqual(["bge-m3"]);
     expect(swept).toEqual(["yes"]);
-    expect(existsSync(join(home, ".cursor", "hooks", "hooks.json"))).toBe(true);
-    expect(existsSync(join(home, ".cursor", "skills", "acrag", "SKILL.md"))).toBe(
-      true,
-    );
+    expect(existsSync(join(home, ".cursor", "hooks.json"))).toBe(true);
+    expect(
+      existsSync(join(home, ".cursor", "skills", "acrag", "SKILL.md")),
+    ).toBe(true);
     expect(out.pulled).toBe(true);
     expect(out.hooks).toBe("installed");
     expect(out.skill).toBe("installed");
@@ -91,7 +94,7 @@ describe("acrag bootstrap", () => {
     const pulled: string[] = [];
     const swept: string[] = [];
     const ui = makeUi({
-      "Install Cursor hooks to ~/.cursor/hooks/hooks.json?": false,
+      "Install Cursor hooks to ~/.cursor/hooks.json?": false,
       "Install the retrieval skill to ~/.cursor/skills/acrag/SKILL.md?": false,
     });
 
@@ -109,10 +112,12 @@ describe("acrag bootstrap", () => {
 
     expect(pulled).toEqual([]); // already pulled -> no pull
     expect(swept).toEqual(["yes"]); // sweep is automatic regardless
-    expect(existsSync(join(home, ".cursor", "hooks", "hooks.json"))).toBe(false);
-    expect(existsSync(join(home, ".cursor", "skills", "acrag", "SKILL.md"))).toBe(
+    expect(existsSync(join(home, ".cursor", "hooks.json"))).toBe(
       false,
     );
+    expect(
+      existsSync(join(home, ".cursor", "skills", "acrag", "SKILL.md")),
+    ).toBe(false);
     expect(out.pulled).toBe(false);
     expect(out.hooks).toBe("declined");
     expect(out.skill).toBe("declined");

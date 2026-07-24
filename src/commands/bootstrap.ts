@@ -74,7 +74,9 @@ function makeConfirm(
 ): (message: string, defaultValue: boolean) => Promise<boolean> {
   return async (message, defaultValue) => {
     const hint = defaultValue ? "Y/n" : "y/N";
-    const answer = (await rl.question(`${message} [${hint}] `)).trim().toLowerCase();
+    const answer = (await rl.question(`${message} [${hint}] `))
+      .trim()
+      .toLowerCase();
     if (answer === "") return defaultValue;
     return answer === "y" || answer === "yes";
   };
@@ -95,10 +97,9 @@ export async function runBootstrap(
     });
 
   const hooksPath =
-    args.hooksPath ?? join(homedir(), ".cursor", "hooks", "hooks.json");
+    args.hooksPath ?? join(homedir(), ".cursor", "hooks.json");
   const skillPath =
-    args.skillPath ??
-    join(homedir(), ".cursor", "skills", "acrag", "SKILL.md");
+    args.skillPath ?? join(homedir(), ".cursor", "skills", "acrag", "SKILL.md");
   const installHooksFn =
     args.installHooksFn ?? ((p) => installHooks({ targetPath: p }).path);
   const installSkillFn =
@@ -189,14 +190,16 @@ async function runSteps(d: RunStepsDeps): Promise<BootstrapOutcome> {
   const db = openArchive(paths.archive, {});
   let conversations: number;
   try {
-    const row = db
-      .query("SELECT COUNT(*) AS c FROM conversation")
-      .get() as { c: number };
+    const row = db.query("SELECT COUNT(*) AS c FROM conversation").get() as {
+      c: number;
+    };
     conversations = row.c;
   } finally {
     db.close();
   }
-  info(`   ${paths.archive} (migrations applied, ${conversations} conversations).`);
+  info(
+    `   ${paths.archive} (migrations applied, ${conversations} conversations).`,
+  );
   info("");
 
   // 3. Cursor hooks (interactive).
@@ -209,7 +212,7 @@ async function runSteps(d: RunStepsDeps): Promise<BootstrapOutcome> {
     info("   skipped (non-interactive). Run: acrag install-hooks");
     hooks = "skipped";
   } else if (
-    await confirm("Install Cursor hooks to ~/.cursor/hooks/hooks.json?", true)
+    await confirm("Install Cursor hooks to ~/.cursor/hooks.json?", true)
   ) {
     installHooksFn(hooksPath);
     info(`   wrote ${hooksPath}.`);

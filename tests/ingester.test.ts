@@ -4,9 +4,16 @@
 // Cleanup uses unlinkSync from node:fs (Bun.file().unlinkSync is not a function in Bun 1.3).
 import { test, expect } from "bun:test";
 import { unlinkSync } from "node:fs";
+import { join } from "node:path";
 import { ingestSource } from "../src/ingest/ingester.ts";
 import { openArchive } from "../src/archive/open.ts";
-import type { FileSource } from "../src/contracts/source.ts";
+import { ensureExtensionCapableSqlite } from "../src/archive/open.ts";
+import type { FileSource, SqliteSource } from "../src/contracts/source.ts";
+
+// Must run before any `new Database` in this file (Bun locks the process SQLite).
+ensureExtensionCapableSqlite();
+
+const cursorFixture = join(import.meta.dir, "fixtures/cursor/v1-sample.vscdb");
 
 const mkOpts = (embedFn: any) => ({
   embedFn,
@@ -27,6 +34,11 @@ const fileSource = (filePath: string, contents: string): FileSource => ({
   kind: "file",
   filePath,
   contents,
+});
+
+const sqliteSource = (dbPath: string): SqliteSource => ({
+  kind: "sqlite",
+  dbPath,
 });
 
 test("first ingest creates conversation + messages + segments + chunks + vec rows", async () => {
@@ -113,5 +125,96 @@ test("changed turn -> re-chunk + re-embed; old chunk_vec entries removed", async
   } finally {
     db.close();
     cleanup([dbPath, src]);
+  }
+});
+
+// --- SqliteSource (Cursor state.vscdb) ingest ---
+
+test("sqlite ingest: indexes the fixture's conversations + chunks + vec rows", async () => {
+  const dbPath = `${import.meta.dir}/.tmp-sqlite.sqlite`;
+  const embedFn = async (batch: string[]) =>
+    batch.map(() => new Float32Array(1024).fill(0.7));
+  const out = await ingestSource(sqliteSource(cursorFixture), {
+    ...mkOpts(embedFn),
+    dbPath,
+  });
+  expect(out.applied).toBe(true);
+  const db = openArchive(dbPath, { readonly: true });
+  try {
+    expect((db.query("SELECT COUNT(*) c FROM conversation").get() as any).c).toBeGreaterThan(0);
+    expect((db.query("SELECT COUNT(*) c FROM message").get() as any).c).toBeGreaterThan(0);
+    expect((db.query("SELECT COUNT(*) c FROM chunk").get() as any).c).toBeGreaterThan(0);
+    expect((db.query("SELECT COUNT(*) c FROM chunk_vec").get() as any).c).toBeGreaterThan(0);
+    // conversations ingested from Cursor carry agent_name = 'cursor'
+    const agent = (
+      db.query("SELECT agent_name FROM conversation LIMIT 1").get() as any
+    ).agent_name;
+    expect(agent).toBe("cursor");
+  } finally {
+    db.close();
+    try {
+      unlinkSync(dbPath);
+    } catch {}
+  }
+});
+
+test("sqlite re-ingest is a no-op when lastUpdatedAt is unchanged", async () => {
+  const dbPath = `${import.meta.dir}/.tmp-sqlite-noop.sqlite`;
+  let calls = 0;
+  const embedFn = async (batch: string[]) => {
+    calls += batch.length;
+    return batch.map(() => new Float32Array(1024));
+  };
+  await ingestSource(sqliteSource(cursorFixture), {
+    ...mkOpts(embedFn),
+    dbPath,
+  });
+  const firstCalls = calls;
+  const out = await ingestSource(sqliteSource(cursorFixture), {
+    ...mkOpts(embedFn),
+    dbPath,
+  });
+  expect(out.applied).toBe(false);
+  expect(calls).toBe(firstCalls);
+  try {
+    unlinkSync(dbPath);
+  } catch {}
+});
+
+test("sqlite targeted ingest (handleId) ingests only that conversation", async () => {
+  const dbPath = `${import.meta.dir}/.tmp-sqlite-targeted.sqlite`;
+  const embedFn = async (batch: string[]) =>
+    batch.map(() => new Float32Array(1024).fill(0.3));
+  // First, full ingest.
+  await ingestSource(sqliteSource(cursorFixture), {
+    ...mkOpts(embedFn),
+    dbPath,
+  });
+  const db = openArchive(dbPath, { readonly: true });
+  let total: number;
+  let firstId: string;
+  try {
+    total = (db.query("SELECT COUNT(*) c FROM conversation").get() as any).c;
+    firstId = (db.query("SELECT id FROM conversation LIMIT 1").get() as any).id;
+  } finally {
+    db.close();
+  }
+  expect(total).toBeGreaterThan(0);
+  // Targeted re-ingest of one conversation: applied=false (unchanged), no new rows.
+  const out = await ingestSource(sqliteSource(cursorFixture), {
+    ...mkOpts(embedFn),
+    dbPath,
+    handleId: firstId,
+  });
+  expect(out.applied).toBe(false);
+  const db2 = openArchive(dbPath, { readonly: true });
+  try {
+    const after = (db2.query("SELECT COUNT(*) c FROM conversation").get() as any).c;
+    expect(after).toBe(total);
+  } finally {
+    db2.close();
+    try {
+      unlinkSync(dbPath);
+    } catch {}
   }
 });

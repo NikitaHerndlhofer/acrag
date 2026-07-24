@@ -16,16 +16,18 @@ export type HookEvent =
   | "workspaceOpen";
 
 export interface StopPayload {
-  /** Transcript path to ingest (`transcript_path` in Cursor's stop payload). */
-  ingestPath: string;
-  /** Cursor conversation id (`conversation_id`), if present. */
-  conversationId?: string;
+  /** Cursor conversation_id — the targeted ingest key. */
+  conversationId: string;
+  /** Transcript path (`transcript_path`), if Cursor provides one (null if disabled). */
+  transcriptPath?: string;
 }
 export interface SubagentStopPayload {
-  /** Subagent transcript path to ingest (`agent_transcript_path`). */
-  ingestPath: string;
+  /** Parent conversation_id (base payload) — the targeted ingest key. */
+  conversationId: string;
   /** Subagent id (`subagent_id`), if present. */
   subagentId?: string;
+  /** Subagent transcript path (`agent_transcript_path`), if present. */
+  agentTranscriptPath?: string;
 }
 export interface SubagentStartPayload {
   /** Row to upsert into `subagent_map` (parent link for later subagentStop). */
@@ -66,15 +68,19 @@ export function parseHookPayload(event: string, stdinJson: string): HookPayload 
   const p = parseJsonLoose(stdinJson);
   switch (ev) {
     case "stop": {
-      const ingestPath = str(p.transcript_path);
-      if (!ingestPath) throw new Error("stop hook: missing transcript_path");
-      return { ingestPath, conversationId: str(p.conversation_id) };
+      const conversationId = str(p.conversation_id);
+      if (!conversationId) throw new Error("stop hook: missing conversation_id");
+      return { conversationId, transcriptPath: str(p.transcript_path) };
     }
     case "subagentStop": {
-      const ingestPath = str(p.agent_transcript_path);
-      if (!ingestPath)
-        throw new Error("subagentStop hook: missing agent_transcript_path");
-      return { ingestPath, subagentId: str(p.subagent_id) };
+      const conversationId = str(p.conversation_id);
+      if (!conversationId)
+        throw new Error("subagentStop hook: missing conversation_id");
+      return {
+        conversationId,
+        subagentId: str(p.subagent_id),
+        agentTranscriptPath: str(p.agent_transcript_path),
+      };
     }
     case "subagentStart": {
       const subagentId = str(p.subagent_id);

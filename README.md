@@ -134,16 +134,17 @@ Two commands, end to end. `brew install` handles the binary and dependencies
    skips the pull (start Ollama, then re-run).
 2. **Archive** — runs the schema migrations to create the archive at
    `~/.acrag/acrag.sqlite` (idempotent via `PRAGMA user_version`).
-3. **Cursor hooks** — asks `Install Cursor hooks to ~/.cursor/hooks/hooks.json?
-   [Y/n]`. If yes, wires Cursor to fire `acrag` on `Stop` / `SubagentStop` /
-   `SubagentStart` / `WorkspaceOpen` so the agent never blocks on embedding
+3. **Cursor hooks** — asks `Install Cursor hooks to ~/.cursor/hooks.json?
+[Y/n]`. If yes, wires Cursor to fire `acrag` on `stop` / `subagentStop` /
+   `subagentStart` / `workspaceOpen` so the agent never blocks on embedding
    (see below). Skipped automatically if already installed.
 4. **Cursor agent skill** — asks `Install the retrieval skill to
-   ~/.cursor/skills/acrag/SKILL.md? [Y/n]`. If yes, writes the recipe `SKILL.md`
+~/.cursor/skills/acrag/SKILL.md? [Y/n]`. If yes, writes the recipe `SKILL.md`
    (manual-invocation only — the agent can't reach for it autonomously). Skipped
    if already installed.
-5. **Initial sweep** — runs `acrag index` automatically to ingest anything
-   already in `~/.acrag/transcripts`.
+5. **Initial sweep** — runs `acrag index` automatically to index your existing
+   Cursor chats straight from `state.vscdb` (plus any `*.jsonl` in
+   `~/.acrag/transcripts`).
 6. Prints a status summary.
 
 Each step is idempotent — re-run `acrag bootstrap` any time to restore the
@@ -155,22 +156,29 @@ commands yourself; the automatic steps still run.
 
 ### About the hooks
 
+`acrag` reads your chats straight from Cursor's on-disk SQLite database
+(`~/Library/Application Support/Cursor/User/globalStorage/state.vscdb` on
+macOS — override with `ACRAG_CURSOR_DB`). It never modifies the Cursor DB; the
+parser opens it read-only and enumerates conversations by `composerId`.
+
 Ingestion is **event-driven and detached**. Cursor fires one of four hook
-events and pipes a small JSON payload on stdin; `acrag hook <event>` reads
-it, spawns a **background** `acrag ingest` (or `acrag index` sweep) via
-`nohup … &`, and exits 0 instantly — so the agent never waits on
-embedding. The four events:
+events and pipes a small JSON payload on stdin; `acrag hook <event>` reads it,
+spawns a **background** `acrag ingest-cursor` / `acrag index` via
+`nohup … &`, and exits 0 instantly — so the agent never waits on embedding.
+The four events (Cursor's camelCase names):
 
-- `Stop` — ingest the conversation transcript at `transcript_path`.
-- `SubagentStop` — ingest the subagent transcript at
-  `agent_transcript_path`, linked to its parent via `subagent_map`.
-- `SubagentStart` — record the parent↔subagent link for later
-  `SubagentStop` to pick up.
-- `WorkspaceOpen` — sweep the transcript dir for anything new/changed.
+- `stop` — re-ingest the conversation at `conversation_id` from `state.vscdb`
+  (targeted: only that composer, only new turns get embedded).
+- `subagentStop` — re-ingest the parent `conversation_id` (the subagent's own
+  composer is picked up on the next `workspaceOpen` sweep).
+- `subagentStart` — record the parent↔subagent link in `subagent_map`.
+- `workspaceOpen` — full idempotent sweep of `state.vscdb` (catches anything
+  the targeted hooks missed, e.g. subagent composers).
 
-`acrag install-hooks` writes the `hooks.json` that maps these; Cursor
-reads it from `~/.cursor/hooks/hooks.json` automatically. No cron, no
-polling, no daemon of our own.
+`acrag install-hooks` writes the `hooks.json` that maps these, merging into
+any existing `~/.cursor/hooks.json` (unrelated hooks are preserved). Cursor
+auto-loads `~/.cursor/hooks.json` — restart Cursor if it doesn't pick them up.
+No cron, no polling, no daemon of our own.
 
 ### About the agent skill
 
@@ -194,13 +202,14 @@ acrag bootstrap
 # 2. Archive
 #    ~/.acrag/acrag.sqlite (migrations applied, 0 conversations).
 # 3. Cursor hooks
-#    Install Cursor hooks to ~/.cursor/hooks/hooks.json? [Y/n] y
-#    wrote ~/.cursor/hooks/hooks.json.
+#    Install Cursor hooks to ~/.cursor/hooks.json? [Y/n] y
+#    wrote ~/.cursor/hooks.json.
 # 4. Cursor agent skill
 #    Install the retrieval skill to ~/.cursor/skills/acrag/SKILL.md? [Y/n] y
 #    wrote ~/.cursor/skills/acrag/SKILL.md.
 # 5. Initial sweep
-#    done.
+#    index: cursor db .../state.vscdb (updated)
+#    index: transcripts scanned 0, applied 0
 # Setup complete.
 # archive: ~/.acrag/acrag.sqlite
 # embed model: bge-m3
@@ -212,37 +221,39 @@ acrag bootstrap
 # conversations: 0
 ```
 
-Then chat in Cursor for a bit; a `Stop` event will trigger a background
-ingest, and `acrag sql` will start returning rows.
+Then chat in Cursor for a bit; a `stop` event will trigger a background
+targeted ingest, and `acrag sql` will start returning rows.
 
 ## Configuration
 
 Zero flags — everything is an env var (validated once per process):
 
-| Env var                 | Default                         | What it overrides                             |
-| ----------------------- | ------------------------------- | --------------------------------------------- |
-| `ACRAG_ARCHIVE`         | `~/.acrag/acrag.sqlite`         | Archive DB path.                              |
-| `ACRAG_TRANSCRIPTS_DIR` | `~/.acrag/transcripts`          | Dir `acrag index` sweeps for `*.jsonl`.       |
-| `ACRAG_OLLAMA_HOST`     | `http://127.0.0.1:11434`        | Ollama endpoint for `acrag embed`.            |
-| `ACRAG_EMBED_MODEL`     | `bge-m3`                        | Ollama embed model (1024-d).                  |
-| `ACRAG_SQLITE_DYLIB`    | Homebrew sqlite (auto-detected) | sqlite dylib with loadable-extension support. |
+| Env var                 | Default                                                              | What it overrides                                       |
+| ----------------------- | -------------------------------------------------------------------- | ------------------------------------------------------- |
+| `ACRAG_ARCHIVE`         | `~/.acrag/acrag.sqlite`                                              | Archive DB path.                                        |
+| `ACRAG_CURSOR_DB`       | `~/Library/.../Cursor/.../state.vscdb` (macOS; empty elsewhere)       | Cursor `state.vscdb` to index.                          |
+| `ACRAG_TRANSCRIPTS_DIR` | `~/.acrag/transcripts`                                               | Dir `acrag index` also sweeps for `*.jsonl`.            |
+| `ACRAG_OLLAMA_HOST`     | `http://127.0.0.1:11434`                                             | Ollama endpoint for `acrag embed`.                       |
+| `ACRAG_EMBED_MODEL`     | `bge-m3`                                                             | Ollama embed model (1024-d).                            |
+| `ACRAG_SQLITE_DYLIB`    | Homebrew sqlite (auto-detected)                                      | sqlite dylib with loadable-extension support.          |
 
 Set them in your shell (or Cursor's env) to override. `acrag path
 archive` prints the resolved archive path for the current env.
 
 ## Commands
 
-| Command                               | What it does                                                                                                                      |
-| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `acrag sql`                           | Run SQL through `sqlite3` (vec preloaded, archive read-only). Pipe SQL via stdin. Forward sqlite3 flags after `--`.               |
-| `acrag embed`                         | Print a vec blob literal (`x'…'`) of the piped text's embedding — for `vec_search` / `vec0` vector columns.                       |
-| `acrag path [archive\|sqlite3\|vec0]` | Print a resolved path.                                                                                                            |
-| `acrag index [-n N]`                  | Sweep the transcript dir for `*.jsonl`: hash-skip unchanged, ingest new, supersede changed. `--limit N` caps files (incremental). |
-| `acrag ingest <path>`                 | Background ingest entry point: read one transcript file, run the idempotent ingest pipeline.                                      |
-| `acrag hook <event>`                  | Cursor hook dispatcher. Reads JSON from stdin, spawns a detached ingest/sweep, exits 0.                                           |
-| `acrag install-hooks`                 | Write `~/.cursor/hooks/hooks.json` and print a settings note.                                                                     |
-| `acrag install-skill`                 | Write the recipe `SKILL.md` to `~/.cursor/skills/acrag/` and print an install note.                                               |
-| `acrag bootstrap`                     | Check Ollama, pull `bge-m3` if missing, create/migrate the archive, prompt to install hooks + skill, run an initial sweep, print status. Idempotent.                                                   |
+| Command                                 | What it does                                                                                                                                         |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `acrag sql`                             | Run SQL through `sqlite3` (vec preloaded, archive read-only). Pipe SQL via stdin. Forward sqlite3 flags after `--`.                                  |
+| `acrag embed`                           | Print a vec blob literal (`x'…'`) of the piped text's embedding — for `vec_search` / `vec0` vector columns.                                          |
+| `acrag path [archive\|sqlite3\|vec0]`   | Print a resolved path.                                                                                                                               |
+| `acrag index [-n N]`                    | Index Cursor chats from `state.vscdb` (primary) + `*.jsonl` in the transcripts dir (secondary). Idempotent per conversation. `--limit N` caps files. |
+| `acrag ingest <path>`                   | Background ingest of one transcript file (FileSource).                                                                                              |
+| `acrag ingest-cursor <conversation_id>` | Targeted re-ingest of one Cursor conversation from `state.vscdb`. Used by the `stop`/`subagentStop` hooks.                                          |
+| `acrag hook <event>`                    | Cursor hook dispatcher. Reads JSON from stdin, spawns a detached ingest-cursor/index, exits 0.                                                      |
+| `acrag install-hooks`                   | Write/merge acrag's events into `~/.cursor/hooks.json` and print a settings note.                                                                   |
+| `acrag install-skill`                   | Write the recipe `SKILL.md` to `~/.cursor/skills/acrag/` and print an install note.                                                                  |
+| `acrag bootstrap`                       | Check Ollama, pull `bge-m3` if missing, create/migrate the archive, prompt to install hooks + skill, run an initial sweep, print status. Idempotent. |
 
 ## Forwarding flags to sqlite3
 

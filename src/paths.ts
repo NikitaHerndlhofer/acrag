@@ -1,4 +1,4 @@
-import { homedir } from "node:os";
+import { homedir, platform } from "node:os";
 import { join } from "node:path";
 import {
   PathOverridesSchema,
@@ -9,11 +9,32 @@ import {
 
 const HOME = homedir();
 
+/**
+ * Default Cursor `state.vscdb` location. Only macOS has a known default; on
+ * other platforms the user must set `ACRAG_CURSOR_DB`. An empty string means
+ * "no Cursor source configured" — `acrag index` then skips the DB sweep.
+ */
+function defaultCursorDb(): string {
+  if (platform() === "darwin") {
+    return join(
+      HOME,
+      "Library",
+      "Application Support",
+      "Cursor",
+      "User",
+      "globalStorage",
+      "state.vscdb",
+    );
+  }
+  return "";
+}
+
 export const DEFAULTS = {
   archive: join(HOME, ".acrag", "acrag.sqlite"),
   ollamaHost: "http://127.0.0.1:11434",
   embedModel: "bge-m3",
   transcriptsDir: join(HOME, ".acrag", "transcripts"),
+  cursorDb: defaultCursorDb(),
 };
 
 export type { ResolvedPaths };
@@ -31,5 +52,6 @@ export function resolvePaths(overrides: unknown = {}): ResolvedPaths {
     ollamaHost: o.ollamaHost ?? DEFAULTS.ollamaHost,
     embedModel: o.embedModel ?? DEFAULTS.embedModel,
     transcriptsDir: o.transcriptsDir ?? DEFAULTS.transcriptsDir,
+    cursorDb: o.cursorDb ?? DEFAULTS.cursorDb,
   });
 }

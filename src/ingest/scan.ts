@@ -37,16 +37,25 @@ async function listJsonlFiles(root: string): Promise<string[]> {
   if (!existsSync(root)) return [];
   const glob = new Bun.Glob("**/*.jsonl");
   const found: string[] = [];
-  for await (const rel of glob.scan({ cwd: root, absolute: true, dot: false })) {
+  for await (const rel of glob.scan({
+    cwd: root,
+    absolute: true,
+    dot: false,
+  })) {
     found.push(rel);
   }
   found.sort();
   return found;
 }
 
-export async function sweep({ root, opts, limit }: SweepOptions): Promise<SweepOutcome> {
+export async function sweep({
+  root,
+  opts,
+  limit,
+}: SweepOptions): Promise<SweepOutcome> {
   const files = await listJsonlFiles(root);
-  const capped = typeof limit === "number" ? files.slice(0, Math.max(0, limit)) : files;
+  const capped =
+    typeof limit === "number" ? files.slice(0, Math.max(0, limit)) : files;
 
   const results: IngestOutcome[] = [];
   let applied = 0;

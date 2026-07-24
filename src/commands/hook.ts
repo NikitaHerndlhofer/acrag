@@ -1,9 +1,14 @@
 /**
- * `acrag hook <event>` (Task 9 Step 5) — Cursor hook dispatcher.
+ * `acrag hook <event>` — Cursor hook dispatcher.
  *
- * Reads the hook JSON payload from stdin, extracts the relevant path/ids, and
- * dispatches a **detached** background `acrag ingest`/`acrag index` so the agent
- * never waits on embedding. Exits 0 instantly.
+ * Reads the hook JSON payload from stdin and dispatches a **detached** background
+ * `acrag ingest-cursor`/`acrag index` so the agent never waits on embedding.
+ * Exits 0 instantly.
+ *
+ *   stop         -> acrag ingest-cursor <conversation_id>  (targeted re-ingest)
+ *   subagentStop -> acrag ingest-cursor <conversation_id>  (parent conversation)
+ *   subagentStart -> upsert subagent_map (sync, fast)
+ *   workspaceOpen -> acrag index                            (full idempotent sweep)
  */
 import { readAllStdin } from "agent-archive-core";
 import { parseHookPayload, type HookPayload } from "../hooks/payload.ts";
@@ -34,19 +39,7 @@ function spawnDetached(args: string[], extraEnv: Record<string, string> = {}): v
   });
 }
 
-/** Look up the parent conversation id for a subagent (from subagent_map). */
-function lookupParent(dbPath: string, subagentId: string): string | undefined {
-  const db = openArchive(dbPath, { readonly: true });
-  try {
-    const row = db
-      .prepare("SELECT parent_conversation_id FROM subagent_map WHERE subagent_id = ?")
-      .get(subagentId) as { parent_conversation_id: string | null } | undefined;
-    return row?.parent_conversation_id ?? undefined;
-  } finally {
-    db.close();
-  }
-}
-
+/** Upsert a subagent→parent link (recorded on subagentStart for later linking). */
 function upsertSubagentMap(
   dbPath: string,
   record: { subagent_id: string; parent_conversation_id?: string; subagent_type?: string; task?: string },
@@ -88,11 +81,7 @@ export async function runHook(event: string, dbPath: string): Promise<void> {
     upsertSubagentMap(dbPath, payload.record);
     return;
   }
-  // stop / subagentStop -> detached ingest
-  const env: Record<string, string> = {};
-  if ("subagentId" in payload && payload.subagentId) {
-    const parent = lookupParent(dbPath, payload.subagentId);
-    if (parent) env.ACRAG_PARENT_CONVERSATION_ID = parent;
-  }
-  spawnDetached(["ingest", payload.ingestPath], env);
+  // stop / subagentStop -> targeted ingest of conversation_id from state.vscdb
+  spawnDetached(["ingest-cursor", payload.conversationId]);
 }
+

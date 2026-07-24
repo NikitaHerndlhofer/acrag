@@ -9,6 +9,7 @@ import { getPath, PathTargetSchema } from "./commands/path.ts";
 import { runSql } from "./commands/sql.ts";
 import { runHook } from "./commands/hook.ts";
 import { runIngest } from "./commands/ingest.ts";
+import { runIngestCursor } from "./commands/ingest-cursor.ts";
 import { runIndex } from "./commands/index.ts";
 import { installHooks, renderSettingsSnippet } from "./commands/install-hooks.ts";
 import { installSkill, renderSkillInstall } from "./commands/install-skill.ts";
@@ -32,6 +33,7 @@ function ctx(): Context {
     ollamaHost: env.ACRAG_OLLAMA_HOST,
     embedModel: env.ACRAG_EMBED_MODEL,
     transcriptsDir: env.ACRAG_TRANSCRIPTS_DIR,
+    cursorDb: env.ACRAG_CURSOR_DB,
   });
   _ctx = { env, paths };
   return _ctx;
@@ -152,13 +154,13 @@ const hookCmd = defineCommand({
   meta: {
     name: "hook",
     description:
-      "Cursor hook dispatcher (stop/subagentStop/subagentStart/workspaceOpen). Reads JSON from stdin, spawns a detached ingest/sweep, exits 0.",
+      "Cursor hook dispatcher (stop/subagentStop/subagentStart/workspaceOpen). Reads JSON from stdin, spawns a detached ingest-cursor/index, exits 0.",
   },
   args: {
     event: {
       type: "positional",
       required: true,
-      description: "Cursor hook event (Stop/SubagentStop/SubagentStart/WorkspaceOpen).",
+      description: "Cursor hook event (stop/subagentStop/subagentStart/workspaceOpen).",
     },
   },
   async run({ args }) {
@@ -192,11 +194,35 @@ const ingestCmd = defineCommand({
   },
 });
 
+const ingestCursorCmd = defineCommand({
+  meta: {
+    name: "ingest-cursor",
+    description:
+      "Targeted re-ingest of one Cursor conversation (by conversation_id) from state.vscdb. Used by the stop/subagentStop hooks.",
+  },
+  args: {
+    conversationId: {
+      type: "positional",
+      required: true,
+      description: "Cursor conversation_id (composerId) to ingest.",
+    },
+  },
+  async run({ args }) {
+    const id = asString(args.conversationId);
+    if (!id) {
+      error("acrag ingest-cursor requires a conversation_id.");
+      process.exit(2);
+    }
+    await runIngestCursor(id, ctx().paths);
+    process.exit(0);
+  },
+});
+
 const installHooksCmd = defineCommand({
   meta: {
     name: "install-hooks",
     description:
-      "Write hooks.json to the Cursor hooks directory and print a settings snippet.",
+      "Write/merge acrag's events into Cursor's user-level ~/.cursor/hooks.json and print a settings note.",
   },
   args: {},
   run() {
@@ -222,7 +248,7 @@ const indexCmd = defineCommand({
   meta: {
     name: "index",
     description:
-      "Sweep the transcript dir for *.jsonl: hash-skip unchanged, ingest new, supersede changed.",
+      "Index Cursor chats from state.vscdb (primary) + *.jsonl transcripts (secondary). Idempotent per conversation.",
   },
   args: {
     limit: {
@@ -268,6 +294,7 @@ const main = defineCommand({
     embed: embedCmd,
     hook: hookCmd,
     ingest: ingestCmd,
+    "ingest-cursor": ingestCursorCmd,
     "install-hooks": installHooksCmd,
     "install-skill": installSkillCmd,
     index: indexCmd,
