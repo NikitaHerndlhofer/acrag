@@ -32,4 +32,3 @@ export function renderHooksJson(opts: RenderHooksJsonOptions): string {
 
 /** Event names acrag registers (camelCase, matching Cursor's spec). */
 export const ACRAG_HOOK_EVENTS = CURSOR_EVENTS;
-

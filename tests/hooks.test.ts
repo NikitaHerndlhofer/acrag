@@ -11,7 +11,9 @@ test("stop extracts conversation_id (+ optional transcript_path)", () => {
 });
 
 test("stop requires conversation_id", () => {
-  expect(() => parseHookPayload("stop", JSON.stringify({ transcript_path: "/a/b.jsonl" }))).toThrow();
+  expect(() =>
+    parseHookPayload("stop", JSON.stringify({ transcript_path: "/a/b.jsonl" })),
+  ).toThrow();
 });
 
 test("subagentStop extracts conversation_id (+ optional subagent fields)", () => {
@@ -50,4 +52,3 @@ test("renderHooksJson default acragBin is bare 'acrag' on PATH", () => {
   const obj = JSON.parse(renderHooksJson({ acragBin: "acrag" }));
   expect(obj.hooks.stop[0].command).toBe("acrag hook stop");
 });
-

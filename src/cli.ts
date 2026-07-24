@@ -11,7 +11,10 @@ import { runHook } from "./commands/hook.ts";
 import { runIngest } from "./commands/ingest.ts";
 import { runIngestCursor } from "./commands/ingest-cursor.ts";
 import { runIndex } from "./commands/index.ts";
-import { installHooks, renderSettingsSnippet } from "./commands/install-hooks.ts";
+import {
+  installHooks,
+  renderSettingsSnippet,
+} from "./commands/install-hooks.ts";
 import { installSkill, renderSkillInstall } from "./commands/install-skill.ts";
 import { runBootstrap } from "./commands/bootstrap.ts";
 import { readAllStdin, stdinIsPiped } from "agent-archive-core";
@@ -34,6 +37,7 @@ function ctx(): Context {
     embedModel: env.ACRAG_EMBED_MODEL,
     transcriptsDir: env.ACRAG_TRANSCRIPTS_DIR,
     cursorDb: env.ACRAG_CURSOR_DB,
+    cursorTranscriptsDir: env.ACRAG_CURSOR_TRANSCRIPTS_DIR,
   });
   _ctx = { env, paths };
   return _ctx;
@@ -64,13 +68,13 @@ const sqlCmd = defineCommand({
     if (asString(args.query) != null && DASHDASH_INDEX < 0) {
       error(
         "acrag sql reads SQL from stdin only — a positional isn't accepted. " +
-          "Pipe it (`echo \"…\" | acrag sql`) or use a heredoc.",
+          'Pipe it (`echo "…" | acrag sql`) or use a heredoc.',
       );
       process.exit(2);
     }
     if (!stdinIsPiped() && PASSTHROUGH_ARGS.length === 0) {
       error(
-        "no SQL provided: pipe it (`echo \"…\" | acrag sql`) or use a heredoc " +
+        'no SQL provided: pipe it (`echo "…" | acrag sql`) or use a heredoc ' +
           "(`acrag sql <<'SQL' … SQL`).",
       );
       process.exit(1);
@@ -102,7 +106,9 @@ const pathCmd = defineCommand({
   },
   run({ args }) {
     const target = PathTargetSchema.parse(asString(args.target) ?? "archive");
-    process.stdout.write(`${getPath({ target, archive: ctx().paths.archive })}\n`);
+    process.stdout.write(
+      `${getPath({ target, archive: ctx().paths.archive })}\n`,
+    );
   },
 });
 
@@ -160,7 +166,8 @@ const hookCmd = defineCommand({
     event: {
       type: "positional",
       required: true,
-      description: "Cursor hook event (stop/subagentStop/subagentStart/workspaceOpen).",
+      description:
+        "Cursor hook event (stop/subagentStop/subagentStart/workspaceOpen).",
     },
   },
   async run({ args }) {

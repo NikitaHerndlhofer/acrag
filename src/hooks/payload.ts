@@ -63,13 +63,17 @@ function str(v: unknown): string | undefined {
   return typeof v === "string" && v.length > 0 ? v : undefined;
 }
 
-export function parseHookPayload(event: string, stdinJson: string): HookPayload {
+export function parseHookPayload(
+  event: string,
+  stdinJson: string,
+): HookPayload {
   const ev = normalizeEvent(event) as HookEvent | string;
   const p = parseJsonLoose(stdinJson);
   switch (ev) {
     case "stop": {
       const conversationId = str(p.conversation_id);
-      if (!conversationId) throw new Error("stop hook: missing conversation_id");
+      if (!conversationId)
+        throw new Error("stop hook: missing conversation_id");
       return { conversationId, transcriptPath: str(p.transcript_path) };
     }
     case "subagentStop": {

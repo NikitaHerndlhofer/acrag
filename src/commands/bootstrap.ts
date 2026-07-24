@@ -96,8 +96,7 @@ export async function runBootstrap(
       await runIndex({ paths });
     });
 
-  const hooksPath =
-    args.hooksPath ?? join(homedir(), ".cursor", "hooks.json");
+  const hooksPath = args.hooksPath ?? join(homedir(), ".cursor", "hooks.json");
   const skillPath =
     args.skillPath ?? join(homedir(), ".cursor", "skills", "acrag", "SKILL.md");
   const installHooksFn =

@@ -19,6 +19,7 @@ export const EnvSchema = z.object({
   ACRAG_EMBED_MODEL: z.string().optional(),
   ACRAG_TRANSCRIPTS_DIR: z.string().optional(),
   ACRAG_CURSOR_DB: z.string().optional(),
+  ACRAG_CURSOR_TRANSCRIPTS_DIR: z.string().optional(),
   ACRAG_VERBOSE: BoolFlag,
   ACRAG_QUIET: BoolFlag,
 });
@@ -30,6 +31,7 @@ export const PathOverridesSchema = z.object({
   embedModel: z.string().optional(),
   transcriptsDir: z.string().optional(),
   cursorDb: z.string().optional(),
+  cursorTranscriptsDir: z.string().optional(),
 });
 export type PathOverrides = z.infer<typeof PathOverridesSchema>;
 
@@ -39,5 +41,6 @@ export const ResolvedPathsSchema = z.object({
   embedModel: z.string().min(1),
   transcriptsDir: z.string(),
   cursorDb: z.string(),
+  cursorTranscriptsDir: z.string(),
 });
 export type ResolvedPaths = z.infer<typeof ResolvedPathsSchema>;

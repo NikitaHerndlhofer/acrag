@@ -29,7 +29,10 @@ function shellQuote(s: string): string {
 }
 
 /** Spawn a detached, nohup-style background process and return immediately. */
-function spawnDetached(args: string[], extraEnv: Record<string, string> = {}): void {
+function spawnDetached(
+  args: string[],
+  extraEnv: Record<string, string> = {},
+): void {
   const inv = acragInvoke(args);
   const line = `nohup ${shellQuote(inv.cmd)} ${inv.args.map(shellQuote).join(" ")} > /dev/null 2>&1 &`;
   Bun.spawn({
@@ -42,7 +45,12 @@ function spawnDetached(args: string[], extraEnv: Record<string, string> = {}): v
 /** Upsert a subagent→parent link (recorded on subagentStart for later linking). */
 function upsertSubagentMap(
   dbPath: string,
-  record: { subagent_id: string; parent_conversation_id?: string; subagent_type?: string; task?: string },
+  record: {
+    subagent_id: string;
+    parent_conversation_id?: string;
+    subagent_type?: string;
+    task?: string;
+  },
 ): void {
   const db = openArchive(dbPath, {});
   try {
@@ -84,4 +92,3 @@ export async function runHook(event: string, dbPath: string): Promise<void> {
   // stop / subagentStop -> targeted ingest of conversation_id from state.vscdb
   spawnDetached(["ingest-cursor", payload.conversationId]);
 }
-

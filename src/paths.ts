@@ -29,12 +29,24 @@ function defaultCursorDb(): string {
   return "";
 }
 
+/**
+ * Default root for on-disk Cursor agent transcripts
+ * (`<root>/<workspace>/agent-transcripts/<id>/<id>.jsonl`). Only macOS has a
+ * known default; elsewhere the user must set `ACRAG_CURSOR_TRANSCRIPTS_DIR`.
+ * An empty string means "no Cursor transcript sweep" — `acrag index` skips it.
+ */
+function defaultCursorTranscriptsDir(): string {
+  if (platform() === "darwin") return join(HOME, ".cursor", "projects");
+  return "";
+}
+
 export const DEFAULTS = {
   archive: join(HOME, ".acrag", "acrag.sqlite"),
   ollamaHost: "http://127.0.0.1:11434",
   embedModel: "bge-m3",
   transcriptsDir: join(HOME, ".acrag", "transcripts"),
   cursorDb: defaultCursorDb(),
+  cursorTranscriptsDir: defaultCursorTranscriptsDir(),
 };
 
 export type { ResolvedPaths };
@@ -53,5 +65,6 @@ export function resolvePaths(overrides: unknown = {}): ResolvedPaths {
     embedModel: o.embedModel ?? DEFAULTS.embedModel,
     transcriptsDir: o.transcriptsDir ?? DEFAULTS.transcriptsDir,
     cursorDb: o.cursorDb ?? DEFAULTS.cursorDb,
+    cursorTranscriptsDir: o.cursorTranscriptsDir ?? DEFAULTS.cursorTranscriptsDir,
   });
 }

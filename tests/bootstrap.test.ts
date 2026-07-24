@@ -46,6 +46,7 @@ function pathsFor(home: string) {
       embedModel: "bge-m3",
       transcriptsDir: join(home, "transcripts"),
       cursorDb: join(home, "state.vscdb"),
+      cursorTranscriptsDir: join(home, "cursor-projects"),
     },
     hooksPath: join(home, ".cursor", "hooks.json"),
     skillPath: join(home, ".cursor", "skills", "acrag", "SKILL.md"),
@@ -112,9 +113,7 @@ describe("acrag bootstrap", () => {
 
     expect(pulled).toEqual([]); // already pulled -> no pull
     expect(swept).toEqual(["yes"]); // sweep is automatic regardless
-    expect(existsSync(join(home, ".cursor", "hooks.json"))).toBe(
-      false,
-    );
+    expect(existsSync(join(home, ".cursor", "hooks.json"))).toBe(false);
     expect(
       existsSync(join(home, ".cursor", "skills", "acrag", "SKILL.md")),
     ).toBe(false);

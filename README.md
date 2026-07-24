@@ -161,6 +161,16 @@ commands yourself; the automatic steps still run.
 macOS — override with `ACRAG_CURSOR_DB`). It never modifies the Cursor DB; the
 parser opens it read-only and enumerates conversations by `composerId`.
 
+`acrag index` also sweeps Cursor's on-disk transcript files
+(`~/.cursor/projects/**/agent-transcripts/<id>/<id>.jsonl` — override the
+root with `ACRAG_CURSOR_TRANSCRIPTS_DIR`). Each transcript's filename is the
+same UUID as its `composerId` in `state.vscdb`, so when a chat exists in BOTH
+sources the **sqlite copy wins** — the sweep skips the on-disk file for any
+conversation `state.vscdb` already indexes, so nothing is double-embedded. The
+JSONL sweep only backfills chats that exist **only** on disk (e.g. legacy or
+pruned-from-db conversations). Subagent transcripts (`…/subagents/<id>.jsonl`)
+are linked back to their parent conversation automatically.
+
 Ingestion is **event-driven and detached**. Cursor fires one of four hook
 events and pipes a small JSON payload on stdin; `acrag hook <event>` reads it,
 spawns a **background** `acrag ingest-cursor` / `acrag index` via
@@ -209,6 +219,7 @@ acrag bootstrap
 #    wrote ~/.cursor/skills/acrag/SKILL.md.
 # 5. Initial sweep
 #    index: cursor db .../state.vscdb (updated)
+#    index: cursor transcripts scanned 12, applied 3, skipped (sqlite-owned) 9
 #    index: transcripts scanned 0, applied 0
 # Setup complete.
 # archive: ~/.acrag/acrag.sqlite
@@ -228,14 +239,15 @@ targeted ingest, and `acrag sql` will start returning rows.
 
 Zero flags — everything is an env var (validated once per process):
 
-| Env var                 | Default                                                              | What it overrides                                       |
-| ----------------------- | -------------------------------------------------------------------- | ------------------------------------------------------- |
-| `ACRAG_ARCHIVE`         | `~/.acrag/acrag.sqlite`                                              | Archive DB path.                                        |
-| `ACRAG_CURSOR_DB`       | `~/Library/.../Cursor/.../state.vscdb` (macOS; empty elsewhere)       | Cursor `state.vscdb` to index.                          |
-| `ACRAG_TRANSCRIPTS_DIR` | `~/.acrag/transcripts`                                               | Dir `acrag index` also sweeps for `*.jsonl`.            |
-| `ACRAG_OLLAMA_HOST`     | `http://127.0.0.1:11434`                                             | Ollama endpoint for `acrag embed`.                       |
-| `ACRAG_EMBED_MODEL`     | `bge-m3`                                                             | Ollama embed model (1024-d).                            |
-| `ACRAG_SQLITE_DYLIB`    | Homebrew sqlite (auto-detected)                                      | sqlite dylib with loadable-extension support.          |
+| Env var                 | Default                                                         | What it overrides                             |
+| ----------------------- | --------------------------------------------------------------- | --------------------------------------------- |
+| `ACRAG_ARCHIVE`         | `~/.acrag/acrag.sqlite`                                         | Archive DB path.                              |
+| `ACRAG_CURSOR_DB`              | `~/Library/.../Cursor/.../state.vscdb` (macOS; empty elsewhere) | Cursor `state.vscdb` to index (primary source).                |
+| `ACRAG_CURSOR_TRANSCRIPTS_DIR` | `~/.cursor/projects` (macOS; empty elsewhere)                   | Root `acrag index` sweeps for on-disk `agent-transcripts/**/*.jsonl`. |
+| `ACRAG_TRANSCRIPTS_DIR`       | `~/.acrag/transcripts`                                          | Dir `acrag index` also sweeps for generic `*.jsonl`.  |
+| `ACRAG_OLLAMA_HOST`     | `http://127.0.0.1:11434`                                        | Ollama endpoint for `acrag embed`.            |
+| `ACRAG_EMBED_MODEL`     | `bge-m3`                                                        | Ollama embed model (1024-d).                  |
+| `ACRAG_SQLITE_DYLIB`    | Homebrew sqlite (auto-detected)                                 | sqlite dylib with loadable-extension support. |
 
 Set them in your shell (or Cursor's env) to override. `acrag path
 archive` prints the resolved archive path for the current env.
@@ -247,11 +259,11 @@ archive` prints the resolved archive path for the current env.
 | `acrag sql`                             | Run SQL through `sqlite3` (vec preloaded, archive read-only). Pipe SQL via stdin. Forward sqlite3 flags after `--`.                                  |
 | `acrag embed`                           | Print a vec blob literal (`x'…'`) of the piped text's embedding — for `vec_search` / `vec0` vector columns.                                          |
 | `acrag path [archive\|sqlite3\|vec0]`   | Print a resolved path.                                                                                                                               |
-| `acrag index [-n N]`                    | Index Cursor chats from `state.vscdb` (primary) + `*.jsonl` in the transcripts dir (secondary). Idempotent per conversation. `--limit N` caps files. |
-| `acrag ingest <path>`                   | Background ingest of one transcript file (FileSource).                                                                                              |
-| `acrag ingest-cursor <conversation_id>` | Targeted re-ingest of one Cursor conversation from `state.vscdb`. Used by the `stop`/`subagentStop` hooks.                                          |
-| `acrag hook <event>`                    | Cursor hook dispatcher. Reads JSON from stdin, spawns a detached ingest-cursor/index, exits 0.                                                      |
-| `acrag install-hooks`                   | Write/merge acrag's events into `~/.cursor/hooks.json` and print a settings note.                                                                   |
+| `acrag index [-n N]`                    | Index Cursor chats from `state.vscdb` (primary), on-disk `agent-transcripts/**/*.jsonl` (sqlite-wins backfill), and generic `*.jsonl` in the transcripts dir. Idempotent per conversation. `--limit N` caps each file sweep. |
+| `acrag ingest <path>`                   | Background ingest of one transcript file (FileSource).                                                                                               |
+| `acrag ingest-cursor <conversation_id>` | Targeted re-ingest of one Cursor conversation from `state.vscdb`. Used by the `stop`/`subagentStop` hooks.                                           |
+| `acrag hook <event>`                    | Cursor hook dispatcher. Reads JSON from stdin, spawns a detached ingest-cursor/index, exits 0.                                                       |
+| `acrag install-hooks`                   | Write/merge acrag's events into `~/.cursor/hooks.json` and print a settings note.                                                                    |
 | `acrag install-skill`                   | Write the recipe `SKILL.md` to `~/.cursor/skills/acrag/` and print an install note.                                                                  |
 | `acrag bootstrap`                       | Check Ollama, pull `bge-m3` if missing, create/migrate the archive, prompt to install hooks + skill, run an initial sweep, print status. Idempotent. |
 

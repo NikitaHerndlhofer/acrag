@@ -6,9 +6,10 @@ export type Version = [major: number, minor: number];
 const NEG_INF: Version = [-Infinity, 0];
 const POS_INF: Version = [Infinity, 0];
 
-/** Parse a version string like "1.5" or "2" into a comparable [major, minor] tuple. */
+/** Parse a version string like "1.5", "2", or "v16" into a comparable [major, minor] tuple. */
 export function parseVer(v: string): Version {
-  const parts = v.trim().split(".");
+  const s = v.trim().replace(/^v/i, "");
+  const parts = s.split(".");
   const major = Number(parts[0] ?? 0);
   const minor = Number(parts[1] ?? 0);
   return [Number.isFinite(major) ? major : 0, Number.isFinite(minor) ? minor : 0];

@@ -270,7 +270,13 @@ export async function ingestSource(
       const { transcript, chunks } = result;
       const conversationId = transcript.conversation.id;
 
-      upsertConversation(db, transcript, handle.id, convHash, opts.parentConversationId);
+      upsertConversation(
+        db,
+        transcript,
+        handle.id,
+        convHash,
+        opts.parentConversationId,
+      );
       replaceTags(db, transcript);
 
       // Map segmentId -> messageId so chunk rows carry denormalized FKs on the
@@ -290,8 +296,12 @@ export async function ingestSource(
         seq: number;
         content_hash: string | null;
       }[];
-      const storedBySeq = new Map<number, { id: string; hash: string | null }>();
-      for (const r of storedRows) storedBySeq.set(r.seq, { id: r.id, hash: r.content_hash });
+      const storedBySeq = new Map<
+        number,
+        { id: string; hash: string | null }
+      >();
+      for (const r of storedRows)
+        storedBySeq.set(r.seq, { id: r.id, hash: r.content_hash });
 
       const newSeqs = new Set<number>();
       const dirtyChunkRows: NewChunkRow[] = [];
@@ -328,7 +338,8 @@ export async function ingestSource(
         for (const seg of msg.segments) {
           purgeSegmentChunks(db, seg.id);
           for (const chunk of chunksBySeg.get(seg.id) ?? []) {
-            const messageId = segToMessage.get(chunk.segmentId) ?? seg.messageId;
+            const messageId =
+              segToMessage.get(chunk.segmentId) ?? seg.messageId;
             dirtyChunkRows.push(
               insertChunk(db, chunk, conversationId, messageId),
             );
@@ -367,10 +378,9 @@ export async function ingestSource(
 
       // Supersede: structural replace (new conversation id differs from old).
       if (existing && existing.id !== conversationId) {
-        db.prepare("UPDATE conversation SET superseded_by = ? WHERE id = ?").run(
-          conversationId,
-          existing.id,
-        );
+        db.prepare(
+          "UPDATE conversation SET superseded_by = ? WHERE id = ?",
+        ).run(conversationId, existing.id);
       }
 
       anyApplied = true;

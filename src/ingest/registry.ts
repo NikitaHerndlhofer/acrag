@@ -18,6 +18,7 @@ import {
 } from "./version.ts";
 import { parser as cursorV1 } from "../parsers/cursor/v1.ts";
 import { chunker as cursorV1Chunker } from "../chunkers/cursor/v1.ts";
+import { parser as cursorV1Jsonl } from "../parsers/cursor/v1-jsonl.ts";
 import { parser as genericParser } from "../parsers/generic.ts";
 import { chunker as genericChunker } from "../chunkers/generic.ts";
 
@@ -199,9 +200,15 @@ export function buildDefaultRegistry(): AgentRegistry {
   const r = createRegistry();
   r.register({
     agent: "cursor",
-    versionRange: "^1",
+    versionRange: ">=1",
     parser: cursorV1,
     chunker: cursorV1Chunker,
+  });
+  r.register({
+    agent: "cursor",
+    versionRange: ">=1",
+    parser: cursorV1Jsonl,
+    chunker: cursorV1Chunker, // same ParsedTranscript shape → reuse the cursor chunker
   });
   r.register({
     agent: "cursor",

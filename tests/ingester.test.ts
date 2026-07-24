@@ -61,10 +61,16 @@ test("first ingest creates conversation + messages + segments + chunks + vec row
   expect(out.applied).toBe(true);
   const db = openArchive(dbPath, { readonly: true });
   try {
-    expect((db.query("SELECT COUNT(*) c FROM conversation").get() as any).c).toBe(1);
+    expect(
+      (db.query("SELECT COUNT(*) c FROM conversation").get() as any).c,
+    ).toBe(1);
     expect((db.query("SELECT COUNT(*) c FROM message").get() as any).c).toBe(2);
-    expect((db.query("SELECT COUNT(*) c FROM chunk").get() as any).c).toBeGreaterThan(0);
-    expect((db.query("SELECT COUNT(*) c FROM chunk_vec").get() as any).c).toBeGreaterThan(0);
+    expect(
+      (db.query("SELECT COUNT(*) c FROM chunk").get() as any).c,
+    ).toBeGreaterThan(0);
+    expect(
+      (db.query("SELECT COUNT(*) c FROM chunk_vec").get() as any).c,
+    ).toBeGreaterThan(0);
     const row = db
       .query("SELECT conversation_id, message_id FROM chunk LIMIT 1")
       .get() as any;
@@ -141,10 +147,18 @@ test("sqlite ingest: indexes the fixture's conversations + chunks + vec rows", a
   expect(out.applied).toBe(true);
   const db = openArchive(dbPath, { readonly: true });
   try {
-    expect((db.query("SELECT COUNT(*) c FROM conversation").get() as any).c).toBeGreaterThan(0);
-    expect((db.query("SELECT COUNT(*) c FROM message").get() as any).c).toBeGreaterThan(0);
-    expect((db.query("SELECT COUNT(*) c FROM chunk").get() as any).c).toBeGreaterThan(0);
-    expect((db.query("SELECT COUNT(*) c FROM chunk_vec").get() as any).c).toBeGreaterThan(0);
+    expect(
+      (db.query("SELECT COUNT(*) c FROM conversation").get() as any).c,
+    ).toBeGreaterThan(0);
+    expect(
+      (db.query("SELECT COUNT(*) c FROM message").get() as any).c,
+    ).toBeGreaterThan(0);
+    expect(
+      (db.query("SELECT COUNT(*) c FROM chunk").get() as any).c,
+    ).toBeGreaterThan(0);
+    expect(
+      (db.query("SELECT COUNT(*) c FROM chunk_vec").get() as any).c,
+    ).toBeGreaterThan(0);
     // conversations ingested from Cursor carry agent_name = 'cursor'
     const agent = (
       db.query("SELECT agent_name FROM conversation LIMIT 1").get() as any
@@ -209,7 +223,9 @@ test("sqlite targeted ingest (handleId) ingests only that conversation", async (
   expect(out.applied).toBe(false);
   const db2 = openArchive(dbPath, { readonly: true });
   try {
-    const after = (db2.query("SELECT COUNT(*) c FROM conversation").get() as any).c;
+    const after = (
+      db2.query("SELECT COUNT(*) c FROM conversation").get() as any
+    ).c;
     expect(after).toBe(total);
   } finally {
     db2.close();

@@ -11,10 +11,7 @@
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import {
-  renderHooksJson,
-  ACRAG_HOOK_EVENTS,
-} from "../hooks/hooks.json.ts";
+import { renderHooksJson, ACRAG_HOOK_EVENTS } from "../hooks/hooks.json.ts";
 import { info } from "../log.ts";
 
 export interface InstallHooksOptions {
@@ -41,7 +38,9 @@ interface CursorHooksJson {
 function mergeHooks(existingPath: string, acragJson: string): string {
   let existing: CursorHooksJson = {};
   try {
-    existing = JSON.parse(readFileSync(existingPath, "utf8")) as CursorHooksJson;
+    existing = JSON.parse(
+      readFileSync(existingPath, "utf8"),
+    ) as CursorHooksJson;
   } catch {
     existing = {}; // unreadable/unparseable — start fresh
   }
