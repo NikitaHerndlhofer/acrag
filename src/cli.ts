@@ -7,6 +7,9 @@ import type { Env } from "./schemas.ts";
 import { runEmbed } from "./commands/embed.ts";
 import { getPath, PathTargetSchema } from "./commands/path.ts";
 import { runSql } from "./commands/sql.ts";
+import { runHook } from "./commands/hook.ts";
+import { runIngest } from "./commands/ingest.ts";
+import { installHooks, renderSettingsSnippet } from "./commands/install-hooks.ts";
 import { readAllStdin, stdinIsPiped } from "agent-archive-core";
 
 // Zero flags — everything is an env var via `getEnv()`. Defer getEnv /
@@ -141,6 +144,63 @@ const embedCmd = defineCommand({
   },
 });
 
+const hookCmd = defineCommand({
+  meta: {
+    name: "hook",
+    description:
+      "Cursor hook dispatcher (stop/subagentStop/subagentStart/workspaceOpen). Reads JSON from stdin, spawns a detached ingest/sweep, exits 0.",
+  },
+  args: {
+    event: {
+      type: "positional",
+      required: true,
+      description: "Cursor hook event (Stop/SubagentStop/SubagentStart/WorkspaceOpen).",
+    },
+  },
+  async run({ args }) {
+    const event = asString(args.event) ?? "";
+    await runHook(event, ctx().paths.archive);
+    process.exit(0);
+  },
+});
+
+const ingestCmd = defineCommand({
+  meta: {
+    name: "ingest",
+    description:
+      "Background ingest entry point: read a transcript file and run the idempotent ingest pipeline.",
+  },
+  args: {
+    path: {
+      type: "positional",
+      required: true,
+      description: "Path to the transcript file to ingest.",
+    },
+  },
+  async run({ args }) {
+    const path = asString(args.path);
+    if (!path) {
+      error("acrag ingest requires a file path.");
+      process.exit(2);
+    }
+    await runIngest(path);
+    process.exit(0);
+  },
+});
+
+const installHooksCmd = defineCommand({
+  meta: {
+    name: "install-hooks",
+    description:
+      "Write hooks.json to the Cursor hooks directory and print a settings snippet.",
+  },
+  args: {},
+  run() {
+    const { path } = installHooks();
+    process.stdout.write(`${renderSettingsSnippet(path)}\n`);
+  },
+});
+
 const main = defineCommand({
   meta: {
     name: "acrag",
@@ -152,6 +212,9 @@ const main = defineCommand({
     sql: sqlCmd,
     path: pathCmd,
     embed: embedCmd,
+    hook: hookCmd,
+    ingest: ingestCmd,
+    "install-hooks": installHooksCmd,
   },
 });
 

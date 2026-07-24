@@ -19,6 +19,12 @@ export interface IngestOptions {
    * input text, in order.
    */
   embedFn?: (batch: string[]) => Promise<Float32Array[]>;
+  /**
+   * Optional parent conversation id (for subagent transcripts). Used as a
+   * fallback when the parsed transcript doesn't carry one — forwarded by the
+   * `acrag ingest` hook entry via `ACRAG_PARENT_CONVERSATION_ID`.
+   */
+  parentConversationId?: string;
 }
 
 export interface IngestOutcome {

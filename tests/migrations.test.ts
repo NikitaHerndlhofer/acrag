@@ -43,6 +43,7 @@ test("MIGRATIONS entries have frozen sha256 (drift canary)", () => {
   const { createHash } = require("node:crypto");
   const FROZEN: Record<number, string> = {
     1: "506904c8ccf29d690d25df1bb9c5432fab1146d99e92f69490018b17ce7d4478",
+    2: "e35e7561bea87b451df17a9b81779af7f1bf9defb9ae8dd82db8f2b6e6f90816",
   };
   for (const m of MIGRATIONS) {
     const expected = FROZEN[m.version];

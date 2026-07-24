@@ -84,6 +84,7 @@ function upsertConversation(
   t: ParsedTranscript,
   sourcePath: string,
   fileHash: string,
+  parentConversationId?: string,
 ): void {
   const c = t.conversation;
   db.prepare(
@@ -99,7 +100,7 @@ function upsertConversation(
     c.repository ?? null,
     sourcePath,
     fileHash,
-    c.parentConversationId ?? null,
+    c.parentConversationId ?? parentConversationId ?? null,
     null,
   );
 }
@@ -257,7 +258,7 @@ export async function ingestSource(
       const { transcript, chunks } = result;
       const conversationId = transcript.conversation.id;
 
-      upsertConversation(db, transcript, handle.id, fileHash);
+      upsertConversation(db, transcript, handle.id, fileHash, opts.parentConversationId);
       replaceTags(db, transcript);
 
       // Map segmentId -> messageId so chunk rows carry denormalized FKs on the
