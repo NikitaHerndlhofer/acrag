@@ -1,6 +1,6 @@
 {
   "name": "acrag",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "type": "module",
   "scripts": {
     "test": "bun test",
@@ -8,7 +8,7 @@
     "tsc": "tsc --noEmit"
   },
   "dependencies": {
-    "agent-archive-core": "github:NikitaHerndlhofer/agent-archive-core#v0.1.0",
+    "agent-archive-core": "github:NikitaHerndlhofer/agent-archive-core#v0.1.1",
     "citty": "^0.2.2",
     "sqlite-vec": "^0.1.9",
     "sqlite-vec-darwin-arm64": "^0.1.9",

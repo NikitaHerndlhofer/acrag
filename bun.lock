@@ -5,7 +5,7 @@
     "": {
       "name": "acrag",
       "dependencies": {
-        "agent-archive-core": "github:NikitaHerndlhofer/agent-archive-core#v0.1.0",
+        "agent-archive-core": "github:NikitaHerndlhofer/agent-archive-core#v0.1.1",
         "citty": "^0.2.2",
         "sqlite-vec": "^0.1.9",
         "sqlite-vec-darwin-arm64": "^0.1.9",
@@ -61,7 +61,7 @@
 
     "@typescript/typescript-win32-x64": ["@typescript/typescript-win32-x64@7.0.2", "", { "os": "win32", "cpu": "x64" }, "sha512-0BQ3HkAHHlKLSp1qRvf3SUhGpGsDuhB/jgFw75guyqbxJqEaS0Cw/VFO8i2nHglJUzQCRtMMR/IBAKE3ETMC4g=="],
 
-    "agent-archive-core": ["agent-archive-core@github:NikitaHerndlhofer/agent-archive-core#709349f", { "dependencies": { "zod": "^4.4.3" } }, "NikitaHerndlhofer-agent-archive-core-709349f", "sha512-EfevQ9XbduXEWz9xvknul855ceOYZ5QZSmhQf24ntHrcqHA/TmNvxffqBfh0d/+GEitRTcD90xzo8BSOXcOWuA=="],
+    "agent-archive-core": ["agent-archive-core@github:NikitaHerndlhofer/agent-archive-core#5f902b7", { "dependencies": { "zod": "^4.4.3" } }, "NikitaHerndlhofer-agent-archive-core-5f902b7", "sha512-uvqN2s1MePLOmuxt4OVaxa/taPblM41fYElh9VixM68XJBVb5uc3uAQNaZPWMsvZh51jd1b3ygIvoi4v2bxe2A=="],
 
     "bun-types": ["bun-types@1.3.14", "", { "dependencies": { "@types/node": "*" } }, "sha512-4N0ig0fEomHt5R0KCFWjovxow98rIoRwKolrYdCcknNwMekCXRnWEUvgu5soYV8QXtVsrUD8B95MBOZGPvr6KQ=="],
 

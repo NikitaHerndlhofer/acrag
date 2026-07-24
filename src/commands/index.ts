@@ -41,7 +41,7 @@ export async function runIndex({ paths, limit }: RunIndexArgs): Promise<void> {
     );
     dbApplied = out.applied;
     process.stdout.write(
-      `index: cursor db ${paths.cursorDb} (${out.applied ? "updated" : "unchanged"})\n`,
+      `index: cursor db ${paths.cursorDb} (${out.applied ? "updated" : "unchanged"})${out.failed ? `, failed ${out.failed}` : ""}\n`,
     );
   }
 

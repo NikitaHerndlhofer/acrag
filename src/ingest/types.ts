@@ -41,4 +41,6 @@ export interface IngestOutcome {
   reason?: string;
   /** The last conversation id touched (for single-conversation sources). */
   conversationId?: string;
+  /** Number of conversations that threw during this sweep and were skipped. */
+  failed?: number;
 }

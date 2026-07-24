@@ -256,6 +256,7 @@ export async function ingestSource(
 
     let anyApplied = false;
     let lastConvId: string | undefined;
+    let failed = 0;
 
     for (const handle of handles) {
       const convHash = fingerprintConversation(source, handle);
@@ -265,131 +266,140 @@ export async function ingestSource(
         continue; // idempotent no-op for this conversation
       }
 
-      const result = registry.parseAndChunk(ctx, handle);
-      if (!result) continue;
-      const { transcript, chunks } = result;
-      const conversationId = transcript.conversation.id;
+      try {
+        const result = registry.parseAndChunk(ctx, handle);
+        if (!result) continue;
+        const { transcript, chunks } = result;
+        const conversationId = transcript.conversation.id;
 
-      upsertConversation(
-        db,
-        transcript,
-        handle.id,
-        convHash,
-        opts.parentConversationId,
-      );
-      replaceTags(db, transcript);
-
-      // Map segmentId -> messageId so chunk rows carry denormalized FKs on the
-      // fast path (the chunk_denorm_ai trigger then stays a no-op).
-      const segToMessage = new Map<string, string>();
-      for (const msg of transcript.messages) {
-        for (const seg of msg.segments) segToMessage.set(seg.id, msg.id);
-      }
-
-      // Diff messages by (conversation_id, seq).
-      const storedRows = db
-        .prepare(
-          "SELECT id, seq, content_hash FROM message WHERE conversation_id = ?",
-        )
-        .all(conversationId) as {
-        id: string;
-        seq: number;
-        content_hash: string | null;
-      }[];
-      const storedBySeq = new Map<
-        number,
-        { id: string; hash: string | null }
-      >();
-      for (const r of storedRows)
-        storedBySeq.set(r.seq, { id: r.id, hash: r.content_hash });
-
-      const newSeqs = new Set<number>();
-      const dirtyChunkRows: NewChunkRow[] = [];
-
-      for (const msg of transcript.messages) {
-        newSeqs.add(msg.seq);
-        const content = segmentContentHash(msg.segments);
-        const contentHash = messageContentHash(msg.segments);
-        const stored = storedBySeq.get(msg.seq);
-        if (stored && stored.hash === contentHash) {
-          continue; // unchanged message -> no chunk changes, no re-embed
-        }
-        // new or changed: upsert message + segments, purge+reinsert chunks.
-        upsertMessage(
+        upsertConversation(
           db,
-          msg.id,
-          conversationId,
-          msg.seq,
-          msg.role,
-          content,
-          contentHash,
-          msg.createdAt ?? null,
-          null,
-          null,
+          transcript,
+          handle.id,
+          convHash,
+          opts.parentConversationId,
         );
-        for (const seg of msg.segments) upsertSegment(db, seg);
-        const chunksBySeg = new Map<string, Chunk[]>();
-        for (const c of chunks) {
-          if (!segToMessage.has(c.segmentId)) continue;
-          const arr = chunksBySeg.get(c.segmentId);
-          if (arr) arr.push(c);
-          else chunksBySeg.set(c.segmentId, [c]);
+        replaceTags(db, transcript);
+
+        // Map segmentId -> messageId so chunk rows carry denormalized FKs on the
+        // fast path (the chunk_denorm_ai trigger then stays a no-op).
+        const segToMessage = new Map<string, string>();
+        for (const msg of transcript.messages) {
+          for (const seg of msg.segments) segToMessage.set(seg.id, msg.id);
         }
-        for (const seg of msg.segments) {
-          purgeSegmentChunks(db, seg.id);
-          for (const chunk of chunksBySeg.get(seg.id) ?? []) {
-            const messageId =
-              segToMessage.get(chunk.segmentId) ?? seg.messageId;
-            dirtyChunkRows.push(
-              insertChunk(db, chunk, conversationId, messageId),
-            );
+
+        // Diff messages by (conversation_id, seq).
+        const storedRows = db
+          .prepare(
+            "SELECT id, seq, content_hash FROM message WHERE conversation_id = ?",
+          )
+          .all(conversationId) as {
+          id: string;
+          seq: number;
+          content_hash: string | null;
+        }[];
+        const storedBySeq = new Map<
+          number,
+          { id: string; hash: string | null }
+        >();
+        for (const r of storedRows)
+          storedBySeq.set(r.seq, { id: r.id, hash: r.content_hash });
+
+        const newSeqs = new Set<number>();
+        const dirtyChunkRows: NewChunkRow[] = [];
+
+        for (const msg of transcript.messages) {
+          newSeqs.add(msg.seq);
+          const content = segmentContentHash(msg.segments);
+          const contentHash = messageContentHash(msg.segments);
+          const stored = storedBySeq.get(msg.seq);
+          if (stored && stored.hash === contentHash) {
+            continue; // unchanged message -> no chunk changes, no re-embed
+          }
+          // new or changed: upsert message + segments, purge+reinsert chunks.
+          upsertMessage(
+            db,
+            msg.id,
+            conversationId,
+            msg.seq,
+            msg.role,
+            content,
+            contentHash,
+            msg.createdAt ?? null,
+            null,
+            null,
+          );
+          for (const seg of msg.segments) upsertSegment(db, seg);
+          const chunksBySeg = new Map<string, Chunk[]>();
+          for (const c of chunks) {
+            if (!segToMessage.has(c.segmentId)) continue;
+            const arr = chunksBySeg.get(c.segmentId);
+            if (arr) arr.push(c);
+            else chunksBySeg.set(c.segmentId, [c]);
+          }
+          for (const seg of msg.segments) {
+            purgeSegmentChunks(db, seg.id);
+            for (const chunk of chunksBySeg.get(seg.id) ?? []) {
+              const messageId =
+                segToMessage.get(chunk.segmentId) ?? seg.messageId;
+              dirtyChunkRows.push(
+                insertChunk(db, chunk, conversationId, messageId),
+              );
+            }
           }
         }
-      }
 
-      // Removed messages (present in DB, absent from new transcript).
-      for (const r of storedRows) {
-        if (!newSeqs.has(r.seq)) purgeMessage(db, r.id);
-      }
-
-      // Embed dirty chunks + vecInsert.
-      if (dirtyChunkRows.length > 0) {
-        const embed =
-          opts.embedFn ??
-          ((batch: string[]) =>
-            embedBatch(batch, {
-              host: opts.ollamaHost,
-              model: opts.embedModel,
-            }));
-        const texts = dirtyChunkRows.map((c) => c.text);
-        const vecs = await embedTexts(texts, {
-          batchSize: EMBED_BATCH_SIZE,
-          embed,
-        });
-        for (let i = 0; i < dirtyChunkRows.length; i++) {
-          vecInsert(db, {
-            table: "chunk_vec",
-            keyColumn: "rowid",
-            key: dirtyChunkRows[i].rowid,
-            vec: vecs[i],
-          });
+        // Removed messages (present in DB, absent from new transcript).
+        for (const r of storedRows) {
+          if (!newSeqs.has(r.seq)) purgeMessage(db, r.id);
         }
-      }
 
-      // Supersede: structural replace (new conversation id differs from old).
-      if (existing && existing.id !== conversationId) {
-        db.prepare(
-          "UPDATE conversation SET superseded_by = ? WHERE id = ?",
-        ).run(conversationId, existing.id);
-      }
+        // Embed dirty chunks + vecInsert.
+        if (dirtyChunkRows.length > 0) {
+          const embed =
+            opts.embedFn ??
+            ((batch: string[]) =>
+              embedBatch(batch, {
+                host: opts.ollamaHost,
+                model: opts.embedModel,
+              }));
+          const texts = dirtyChunkRows.map((c) => c.text);
+          const vecs = await embedTexts(texts, {
+            batchSize: EMBED_BATCH_SIZE,
+            embed,
+          });
+          for (let i = 0; i < dirtyChunkRows.length; i++) {
+            vecInsert(db, {
+              table: "chunk_vec",
+              keyColumn: "rowid",
+              key: dirtyChunkRows[i].rowid,
+              vec: vecs[i],
+            });
+          }
+        }
 
-      anyApplied = true;
-      lastConvId = conversationId;
+        // Supersede: structural replace (new conversation id differs from old).
+        if (existing && existing.id !== conversationId) {
+          db.prepare(
+            "UPDATE conversation SET superseded_by = ? WHERE id = ?",
+          ).run(conversationId, existing.id);
+        }
+
+        anyApplied = true;
+        lastConvId = conversationId;
+      } catch (e) {
+        // One bad conversation must never abort the whole sweep. Log and move on.
+        failed += 1;
+        const msg = e instanceof Error ? e.message : String(e);
+        process.stderr.write(
+          `[acrag] ingest: skipping conversation ${handle.id}: ${msg}\n`,
+        );
+      }
     }
 
     await runUpdaters(db, undefined as any, UPDATERS, logger);
 
-    return { applied: anyApplied, conversationId: lastConvId };
+    return { applied: anyApplied, conversationId: lastConvId, failed };
   } finally {
     db.close();
   }
