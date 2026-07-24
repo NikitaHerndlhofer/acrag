@@ -16,6 +16,9 @@
  * Outputs:
  *   dist/acrag-darwin-arm64
  *   dist/acrag-darwin-x64
+ *   dist/acrag-darwin-arm64.tar.gz
+ *   dist/acrag-darwin-x64.tar.gz
+ *   dist/sha256sums.txt
  */
 import {
   copyFileSync,
@@ -90,6 +93,26 @@ async function main() {
     const size = statSync(out).size;
     console.log(`[build] ${t.name} -> ${out} (${size} bytes)`);
   }
+
+  console.log("[build] tarballing");
+  for (const t of TARGETS) {
+    const r = Bun.spawnSync({
+      cmd: ["tar", "-czf", `${t.name}.tar.gz`, t.name],
+      cwd: DIST,
+      stdout: "inherit",
+      stderr: "inherit",
+    });
+    if (r.exitCode !== 0) throw new Error(`tar failed for ${t.name}`);
+  }
+
+  console.log("[build] sha256sums");
+  const shasum = Bun.spawnSync({
+    cmd: ["bash", "-c", "shasum -a 256 *.tar.gz > sha256sums.txt"],
+    cwd: DIST,
+    stdout: "inherit",
+    stderr: "inherit",
+  });
+  if (shasum.exitCode !== 0) throw new Error("shasum failed");
 
   console.log("[build] done");
 }
