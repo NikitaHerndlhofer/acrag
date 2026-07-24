@@ -11,6 +11,7 @@ import { runHook } from "./commands/hook.ts";
 import { runIngest } from "./commands/ingest.ts";
 import { runIndex } from "./commands/index.ts";
 import { installHooks, renderSettingsSnippet } from "./commands/install-hooks.ts";
+import { installSkill, renderSkillInstall } from "./commands/install-skill.ts";
 import { readAllStdin, stdinIsPiped } from "agent-archive-core";
 
 // Zero flags — everything is an env var via `getEnv()`. Defer getEnv /
@@ -203,6 +204,19 @@ const installHooksCmd = defineCommand({
   },
 });
 
+const installSkillCmd = defineCommand({
+  meta: {
+    name: "install-skill",
+    description:
+      "Write SKILL.md (the acrag recipe set) to the agent skill directory and print an install note.",
+  },
+  args: {},
+  run() {
+    const { path } = installSkill();
+    process.stdout.write(`${renderSkillInstall(path)}\n`);
+  },
+});
+
 const indexCmd = defineCommand({
   meta: {
     name: "index",
@@ -241,6 +255,7 @@ const main = defineCommand({
     hook: hookCmd,
     ingest: ingestCmd,
     "install-hooks": installHooksCmd,
+    "install-skill": installSkillCmd,
     index: indexCmd,
   },
 });
