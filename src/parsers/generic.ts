@@ -9,6 +9,7 @@
  * source (e.g. a `SqliteSource` it cannot interpret).
  */
 
+import { createHash } from "node:crypto";
 import type {
   AgentId,
   ConversationMeta,
@@ -19,6 +20,10 @@ import type {
 } from "../contracts/types.ts";
 import type { DetectContext, Parser, ParserMatch } from "../contracts/parser.ts";
 import type { ConversationHandle } from "../contracts/source.ts";
+
+function sha256(text: string): string {
+  return createHash("sha256").update(text).digest("hex");
+}
 
 function asString(v: unknown): string | undefined {
   return typeof v === "string" && v.length > 0 ? v : undefined;
@@ -59,6 +64,12 @@ function parse(ctx: DetectContext, handle: ConversationHandle): ParsedTranscript
   const agent: AgentId = ctx.agentHint ?? "cursor";
   const lines = ctx.source.contents.split("\n");
 
+  // Content-aware conversation id: a changed file produces a NEW id, so the
+  // ingester's supersede branch (existing.id !== conversationId) triggers.
+  // segment.id / message.id stay stable (keyed on handle.id + seq) — only the
+  // conversation id (and the messages' conversationId FK) track content.
+  const convId = `${handle.id}:${sha256(ctx.source.contents)}`;
+
   const messages: ParsedMessage[] = [];
   let seq = 0;
 
@@ -89,7 +100,7 @@ function parse(ctx: DetectContext, handle: ConversationHandle): ParsedTranscript
     };
     messages.push({
       id: messageId,
-      conversationId: handle.id,
+      conversationId: convId,
       role,
       seq,
       segments: [segment],
@@ -97,7 +108,7 @@ function parse(ctx: DetectContext, handle: ConversationHandle): ParsedTranscript
     seq += 1;
   }
 
-  const conversation: ConversationMeta = { id: handle.id, agent };
+  const conversation: ConversationMeta = { id: convId, agent };
   return { conversation, messages };
 }
 

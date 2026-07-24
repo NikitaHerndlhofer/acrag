@@ -9,6 +9,7 @@ import { getPath, PathTargetSchema } from "./commands/path.ts";
 import { runSql } from "./commands/sql.ts";
 import { runHook } from "./commands/hook.ts";
 import { runIngest } from "./commands/ingest.ts";
+import { runIndex } from "./commands/index.ts";
 import { installHooks, renderSettingsSnippet } from "./commands/install-hooks.ts";
 import { readAllStdin, stdinIsPiped } from "agent-archive-core";
 
@@ -28,6 +29,7 @@ function ctx(): Context {
     archive: env.ACRAG_ARCHIVE,
     ollamaHost: env.ACRAG_OLLAMA_HOST,
     embedModel: env.ACRAG_EMBED_MODEL,
+    transcriptsDir: env.ACRAG_TRANSCRIPTS_DIR,
   });
   _ctx = { env, paths };
   return _ctx;
@@ -201,6 +203,30 @@ const installHooksCmd = defineCommand({
   },
 });
 
+const indexCmd = defineCommand({
+  meta: {
+    name: "index",
+    description:
+      "Sweep the transcript dir for *.jsonl: hash-skip unchanged, ingest new, supersede changed.",
+  },
+  args: {
+    limit: {
+      type: "string",
+      alias: "n",
+      required: false,
+      description: "Cap the number of files processed (incremental backfill).",
+    },
+  },
+  async run({ args }) {
+    const limit = asString(args.limit);
+    await runIndex({
+      paths: ctx().paths,
+      limit: limit != null ? Number(limit) : undefined,
+    });
+    process.exit(0);
+  },
+});
+
 const main = defineCommand({
   meta: {
     name: "acrag",
@@ -215,6 +241,7 @@ const main = defineCommand({
     hook: hookCmd,
     ingest: ingestCmd,
     "install-hooks": installHooksCmd,
+    index: indexCmd,
   },
 });
 

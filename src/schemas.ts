@@ -17,6 +17,7 @@ export const EnvSchema = z.object({
   ACRAG_SQLITE_DYLIB: z.string().optional(),
   ACRAG_OLLAMA_HOST: z.url().optional(),
   ACRAG_EMBED_MODEL: z.string().optional(),
+  ACRAG_TRANSCRIPTS_DIR: z.string().optional(),
   ACRAG_VERBOSE: BoolFlag,
   ACRAG_QUIET: BoolFlag,
 });
@@ -26,6 +27,7 @@ export const PathOverridesSchema = z.object({
   archive: z.string().optional(),
   ollamaHost: z.url().optional(),
   embedModel: z.string().optional(),
+  transcriptsDir: z.string().optional(),
 });
 export type PathOverrides = z.infer<typeof PathOverridesSchema>;
 
@@ -33,5 +35,6 @@ export const ResolvedPathsSchema = z.object({
   archive: z.string(),
   ollamaHost: z.url(),
   embedModel: z.string().min(1),
+  transcriptsDir: z.string(),
 });
 export type ResolvedPaths = z.infer<typeof ResolvedPathsSchema>;

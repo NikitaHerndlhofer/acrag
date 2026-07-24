@@ -13,6 +13,7 @@ export const DEFAULTS = {
   archive: join(HOME, ".acrag", "acrag.sqlite"),
   ollamaHost: "http://127.0.0.1:11434",
   embedModel: "bge-m3",
+  transcriptsDir: join(HOME, ".acrag", "transcripts"),
 };
 
 export type { ResolvedPaths };
@@ -29,5 +30,6 @@ export function resolvePaths(overrides: unknown = {}): ResolvedPaths {
     archive: o.archive ?? DEFAULTS.archive,
     ollamaHost: o.ollamaHost ?? DEFAULTS.ollamaHost,
     embedModel: o.embedModel ?? DEFAULTS.embedModel,
+    transcriptsDir: o.transcriptsDir ?? DEFAULTS.transcriptsDir,
   });
 }
