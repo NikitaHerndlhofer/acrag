@@ -4,3 +4,7 @@ node_modules/
 *.sqlite-wal
 .tmp-*
 .DS_Store
+
+# Build output + vendored vec dylibs (produced by scripts/build.ts)
+dist/
+/vendor/*.dylib

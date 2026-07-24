@@ -12,6 +12,7 @@ import { runIngest } from "./commands/ingest.ts";
 import { runIndex } from "./commands/index.ts";
 import { installHooks, renderSettingsSnippet } from "./commands/install-hooks.ts";
 import { installSkill, renderSkillInstall } from "./commands/install-skill.ts";
+import { runBootstrap } from "./commands/bootstrap.ts";
 import { readAllStdin, stdinIsPiped } from "agent-archive-core";
 
 // Zero flags — everything is an env var via `getEnv()`. Defer getEnv /
@@ -241,6 +242,19 @@ const indexCmd = defineCommand({
   },
 });
 
+const bootstrapCmd = defineCommand({
+  meta: {
+    name: "bootstrap",
+    description:
+      "Check Ollama, create the archive DB (run migrations), and print status.",
+  },
+  args: {},
+  async run() {
+    await runBootstrap({ paths: ctx().paths });
+    process.exit(0);
+  },
+});
+
 const main = defineCommand({
   meta: {
     name: "acrag",
@@ -257,6 +271,7 @@ const main = defineCommand({
     "install-hooks": installHooksCmd,
     "install-skill": installSkillCmd,
     index: indexCmd,
+    bootstrap: bootstrapCmd,
   },
 });
 
