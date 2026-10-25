@@ -1,3 +1,5 @@
+> **Superseded by [memindex](https://github.com/NikitaHerndlhofer/memindex).** This repository is archived and read-only. Install the successor with `brew install nikitaherndlhofer/tap/memindex`.
+
 # acrag
 
 A local-first, append-only archive of your **agentic coding chat history**
